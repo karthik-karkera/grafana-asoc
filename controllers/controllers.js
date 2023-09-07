@@ -5,6 +5,7 @@ var log4js = require("log4js");
 var logger = log4js.getLogger();
 const queries = require('../models/query');
 const { convertToMySQLDateTime } = require('../utils/utils')
+const db = require('../db');
 
 var methods = {};
 
@@ -50,7 +51,10 @@ methods.applicationList = async (req, res) => {
     }
     try {
         const appscanToken = req.token;
-        let a = await queries.createApplicationTable();
+
+        let a = await db()
+        let b = await queries.createApplicationTable(a);
+        console.log(b)
         const result = await service.getApplicationList(appscanToken);
         const scanResult = await service.getScanList(appscanToken);
 
@@ -75,22 +79,8 @@ methods.applicationList = async (req, res) => {
         if (result.code === 200) {
             let filterData = "";
             let nameList = `(appId, appName, criticalIssues, highIssues, mediumIssues, lowIssues, businessImpact, lastUpdated, totalIssues, lastScanDate)`;
-            result.data.Items.map(item => filterData += `('${item.Id}', '${item.Name}', ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, '${item.BusinessImpact}', '${convertToMySQLDateTime(item.LastUpdated)}', ${item.TotalIssues}, '${convertToMySQLDateTime(item.lastScanDate)}' ),`);
-            await queries.updateApplicationTable('ApplicationStatistics', nameList, filterData.slice(0, -1));
-            // dbApplicationData.forEach(item => {
-            //     lookup[item.appId] = item
-            // })
-            // console.log(dbApplicationData, '//')
-            // result.data.Items.forEach(item => {
-            //     if(!lookup.hasOwnProperty(item.appId)){
-            //         dbApplicationData.push(item);
-            //         lookup[item.appId] = item;
-            //     }
-            // })
-            // console.log(dbApplicationData, '///')
-            // result.data.Items.map(a => console.log(a))
-            // { Id: a.Id, AppName: a.Name, HighIssues: a.HighIssues, MediumIssues: a.MediumIssues, LowIssues: a.LowIssues, BusinessImpact: a.BusinessImpact, LastUpdated: a.LastUpdated, TotalIssues: a.HighIssues + a.MediumIssues + a.LowIssues };
-
+            result.data.Items.map(item => filterData += `('${item.Id}', '${item.Name}', ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, '${item.BusinessImpact}', ${convertToMySQLDateTime(item.LastUpdated)}, ${item.TotalIssues}, ${convertToMySQLDateTime(item.lastScanDate)} ),`);
+            await queries.updateApplicationTable(a, 'ApplicationStatistics', nameList, filterData.slice(0, -1));
             res.send("Application Added");
         }
     } catch (err) {
@@ -106,7 +96,8 @@ methods.issueList = async (req, res) => {
     }
     try {
         const appscanToken = req.token;
-        let createIssueTable = await queries.createIssueTable();
+        let a = await db()
+        let createIssueTable = await queries.createIssueTable(a);
         const applicationList = await queries.getAllData('ApplicationStatistics');
         if (applicationList != undefined) {
             applicationList.map(async app => {
@@ -119,8 +110,8 @@ methods.issueList = async (req, res) => {
                         issueList.push({ 'issueId': issue.Id, 'appId': issue.ApplicationId, 'severity': issue.Severity, 'status': issue.Status, 'externalId': issue.ExternalId || null, 'dateCreated': issue.DateCreated, 'lastFound': issue.LastFound, 'lastUpdated': issue.LastUpdated, 'discoveryMethod': issue.DiscoveryMethod, 'scanName': issue.ScanName, 'issueType': issue.IssueType })
                     })
                     let nameList = `(issueId, appId, severity, status, externalId, dateCreated, lastFound, lastUpdated, discoveryMethod, scanName, issueType)`;
-                    issueList.map(item => filterData += `('${item.issueId}', '${item.appId}', '${item.severity}', '${item.status}', '${item.externalId}', '${convertToMySQLDateTime(item.dateCreated)}', '${convertToMySQLDateTime(item.lastFound)}', '${convertToMySQLDateTime(item.lastUpdated)}', '${item.discoveryMethod}', '${item.scanName}', '${item.issueType}'),`);
-                    await queries.updateIssueTable('IssueStatistics', nameList, filterData.slice(0, -1));
+                    issueList.map(item => filterData += `('${item.issueId}', '${item.appId}', '${item.severity}', '${item.status}', '${item.externalId}', ${convertToMySQLDateTime(item.dateCreated)}, ${convertToMySQLDateTime(item.lastFound)}, ${convertToMySQLDateTime(item.lastUpdated)}, '${item.discoveryMethod}', '${item.scanName}', '${item.issueType}'),`);
+                    await queries.updateIssueTable(a, 'IssueStatistics', nameList, filterData.slice(0, -1));
                 }
             })
             res.send('Issues Added')

@@ -31,9 +31,9 @@ const httpCall = async (httpOptions) => {
 methods.convertToMySQLDateTime = (dateString) => {
     try {
         if(dateString == undefined || dateString == null){
-            return ''
+            return null
         }
-        return new Date(dateString).toISOString().slice(0, 19).replace('T', ' ');
+        return "'" + new Date(dateString).toISOString().slice(0, 19).replace('T', ' ') + "'";
     } catch (error) {
         console.log(error)
         // logger.error('Error converting date:', error);
