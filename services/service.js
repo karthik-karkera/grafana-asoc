@@ -13,12 +13,16 @@ methods.getApplicationList = async (appscanToken) => {
 
 methods.getIssueList = async (appscanToken, appId) => {
     const url = constants.GET_ISSUE_APPLICATION_LIST.replace('${appId}', appId);
-    console.log(url)
     return await util.httpRequest(url, appscanToken, "GET")
 }
 
 methods.getScanList = async (appscanToken) => {
     const url = constants.GET_ALL_SCAN_LIST;
+    return await util.httpRequest(url, appscanToken, "GET")
+}
+
+methods.getFixGroupList = async (appscanToken, appId) => {
+    const url = constants.FIX_GROUPS.replace('${appId}', appId);
     return await util.httpRequest(url, appscanToken, "GET")
 }
 

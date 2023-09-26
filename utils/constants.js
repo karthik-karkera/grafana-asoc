@@ -3,7 +3,8 @@ var constants = {
     ASOC_APPLICATION_LIST: '/api/V2/Apps/GetAsPage?%24inlinecount=allpages',
     GET_ALL_SCAN_LIST : '/api/v2/Scans/GetAsPageMin?%24inlinecount=allpages',
     GET_ISSUE_APPLICATION_LIST : '/api/v2/Issues/Application/${appId}',
-    SCAN_LIST : '/api/v2/Apps/${appId}/Scans'
+    SCAN_LIST : '/api/v2/Issues/Application/${appId}?%24inlinecount=allpages',
+    FIX_GROUPS: '/api/v2/FixGroups/Application/${appId}?applyPolicies=All&%24inlinecount=allpages',
 }
 
 module.exports = constants;

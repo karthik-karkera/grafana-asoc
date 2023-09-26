@@ -8,7 +8,7 @@ const connectionString = "server=LP1-AP-52178079\\SQLEXPRESS01;Database=asoc_gra
 const queries = {
     createApplicationTable: async (sql) => {
         try {
-            const query = `CREATE TABLE IF NOT EXISTS ApplicationStatistics(appId VARCHAR(100) PRIMARY KEY, appName VARCHAR(30), criticalIssues INT, highIssues INT, mediumIssues INT, lowIssues INT, businessImpact VARCHAR(10), lastUpdated DATETIME, lastScanDate DATETIME, totalIssues INT);`
+            const query = `CREATE TABLE IF NOT EXISTS ApplicationStatistics(appId VARCHAR(100) PRIMARY KEY, appName VARCHAR(30), criticalIssues INT, highIssues INT, mediumIssues INT, lowIssues INT, businessImpact VARCHAR(10), dateCreated DATETIME, lastUpdated DATETIME, lastScanDate DATETIME, totalIssues INT);`
             const result = await sql.query(query);
             return result;
         } catch (err) {
@@ -17,25 +17,27 @@ const queries = {
     },
     createIssueTable: async (sql) => {
         try {
-            // const checkTable = `SELECT OBJECT_ID('IssueStatistics') AS objectId`
-            const query = `CREATE TABLE IF NOT EXISTS IssueStatistics(issueId VARCHAR(50) PRIMARY KEY, appId VARCHAR(100), severity VARCHAR(50), status VARCHAR(50), externalId VARCHAR(100), dateCreated DATETIME, lastFound DATETIME, lastUpdated DATETIME, discoveryMethod VARCHAR(1000), scanName VARCHAR(100), issueType VARCHAR(200), statusUpdate DATETIME)`;
+            const query = `CREATE TABLE IF NOT EXISTS IssueStatistics(issueId VARCHAR(50) PRIMARY KEY, appId VARCHAR(100), appName VARCHAR(200), severity VARCHAR(50), status VARCHAR(50), externalId VARCHAR(100), dateCreated DATETIME, lastFound DATETIME, lastUpdated DATETIME, discoveryMethod VARCHAR(1000), scanName VARCHAR(100), issueType VARCHAR(200), statusUpdate DATETIME)`;
             const result = await sql.query(query);
             return result;
-            // await sql.query(connectionString, checkTable, async (err, rows) => {
-            //     if (err) console.log(err);
-            //     else {
-            //         if (rows[0].objectId == null) {
-            //             await sql.query(connectionString, query, (err, rows) => {
-            //                 if (err) console.log(err)
-            //                 else {
-            //                     logger.info('TABLE CREATED : IssueStatistics')     
-            //                 }
-            //             })
-            //         } else {
-            //             logger.info('Table Already Exists : IssueStatistics')
-            //         }
-            //     }
-            // });
+        } catch (err) {
+            logger.error(err)
+        }
+    },
+    createFixGroupsTable: async (sql) => {
+        try {
+            const query = `CREATE TABLE IF NOT EXISTS FixGroups(fixGroupId VARCHAR(50) PRIMARY KEY, appId VARCHAR(50), appName VARCHAR(100), fixGroupType VARCHAR(255), fixLocationEnitityType VARCHAR(100), severity VARCHAR(30), severityValue INT, totalIssues INT, activeIssues INT, issueType VARCHAR(255), issueTypeId VARCHAR(100), status VARCHAR(30), file VARCHAR(255), libraryName VARCHAR(255), dateCreated DATETIME, lastUpdated DATETIME )`;
+            const result = await sql.query(query);
+            return result;
+        } catch (err) {
+            logger.error(err)
+        }
+    },
+    createScanTable: async (sql) => {
+        try {
+            const query = `CREATE TABLE IF NOT EXISTS ScansStatistics(scanId VARCHAR(50) PRIMARY KEY, appId VARCHAR(100), appName VARCHAR(200), scanName VARCHAR(100), status VARCHAR(50), technology VARCHAR(30), executionProgress VARCHAR(30), dateCreated DATETIME, lastUpdated DATETIME, appCreated DATETIME)`;
+            const result = await sql.query(query);
+            return result;
         } catch (err) {
             logger.error(err)
         }
@@ -65,7 +67,7 @@ const queries = {
             await sql.query(query)
 
         } catch (err) {
-            console.log(err)
+            logger.error(err)
         }
     },
     updateIssueTable: async (sql, tableName, NameList, DataList) => {
@@ -79,21 +81,85 @@ const queries = {
                 INSERT (issueId, appId, severity, status, externalId, dateCreated, lastFound, lastUpdated, discoveryMethod, scanName, issueType)
                 VALUES (source.issueId, source.appId, source.severity, source.status, source.externalId, source.dateCreated, source.lastFound, source.lastUpdated, source.discoveryMethod, source.scanName, source.issueType);`
 
+            // const query = `INSERT INTO ${tableName} ${NameList}
+            //     VALUES ${DataList}
+            //     ON DUPLICATE KEY UPDATE
+            //     externalId = VALUES(externalId), 
+            //     lastUpdated = VALUES(lastUpdated),
+            //     statusUpdate = CASE WHEN VALUES(status) = 'Fixed' THEN NOW() WHEN VALUES(status) IN ('New','Open','InProgress','Reopened') THEN NOW() ELSE statusUpdate END,
+            //     status = VALUES(status)`
 
             const query = `INSERT INTO ${tableName} ${NameList}
                 VALUES ${DataList}
                 ON DUPLICATE KEY UPDATE
                 externalId = VALUES(externalId), 
                 lastUpdated = VALUES(lastUpdated),
-                statusUpdate = CASE WHEN VALUES(status) = 'Fixed' THEN statusUpdate WHEN VALUES(status) IN ('New','Open','InProgress','Reopened') THEN NOW() ELSE statusUpdate END,
+                statusUpdate = CASE WHEN VALUES(status) = 'Fixed' AND (status = 'Open' OR status = 'New') THEN NOW() ELSE statusUpdate END,
                 status = VALUES(status)`
                 
             await sql.query(query)
-
-
-
         } catch (err) {
-            console.log(err)
+            logger.error(err)
+        }
+    },
+    updateFixGroupTable: async (sql, tableName, NameList, DataList) => {
+        try {
+            const query1 = `MERGE INTO ${tableName} AS target
+            USING (VALUES ${DataList}) AS source ${NameList}
+            ON target.fixGroupId = source.fixGroupId
+            WHEN MATCHED THEN
+                UPDATE SET target.lastUpdated = source.lastUpdated, target.status = source.status, target.totalIssues = source.totalIssues, target.activeIssues = source.activeIssues,
+            WHEN NOT MATCHED THEN
+                INSERT (issueId, appId, appName, severity, status, externalId, dateCreated, lastFound, lastUpdated, discoveryMethod, scanName, issueType)
+                VALUES (source.issueId, source.appId, source.severity, source.status, source.externalId, source.dateCreated, source.lastFound, source.lastUpdated, source.discoveryMethod, source.scanName, source.issueType);`
+
+            // const query = `INSERT INTO ${tableName} ${NameList}
+            //     VALUES ${DataList}
+            //     ON DUPLICATE KEY UPDATE
+            //     externalId = VALUES(externalId), 
+            //     lastUpdated = VALUES(lastUpdated),
+            //     statusUpdate = CASE WHEN VALUES(status) = 'Fixed' THEN NOW() WHEN VALUES(status) IN ('New','Open','InProgress','Reopened') THEN NOW() ELSE statusUpdate END,
+            //     status = VALUES(status)`
+
+            const query = `INSERT INTO ${tableName} ${NameList}
+                VALUES ${DataList}
+                ON DUPLICATE KEY UPDATE
+                lastUpdated = VALUES(lastUpdated), 
+                status = VALUES(status),
+                totalIssues = VALUES(totalIssues),
+                activeIssues = VALUES(activeIssues)`
+            await sql.query(query)
+        } catch (err) {
+            logger.error(err)
+        }
+    },
+    updateScanTable: async (sql, tableName, NameList, DataList) => {
+        try {
+            const query1 = `MERGE INTO ${tableName} AS target
+            USING (VALUES ${DataList}) AS source ${NameList}
+            ON target.scanId = source.scanId
+            WHEN MATCHED THEN
+                UPDATE SET target.lastUpdated = source.lastUpdated, target.status = CASE WHEN target.status <> source.status THEN source.status ELSE target.status END,
+            WHEN NOT MATCHED THEN
+                INSERT (scanId, appId, appName, scanName, status, technology, executionProgress, dateCreated, lastFound)
+                VALUES (source.scanId, source.appId, source.appName, source.scanName, source.status, source.technology, source.executionProgress, source.dateCreated, source.lastFound);`
+
+            // const query = `INSERT INTO ${tableName} ${NameList}
+            //     VALUES ${DataList}
+            //     ON DUPLICATE KEY UPDATE
+            //     externalId = VALUES(externalId), 
+            //     lastUpdated = VALUES(lastUpdated),
+            //     statusUpdate = CASE WHEN VALUES(status) = 'Fixed' THEN NOW() WHEN VALUES(status) IN ('New','Open','InProgress','Reopened') THEN NOW() ELSE statusUpdate END,
+            //     status = VALUES(status)`
+
+            const query = `INSERT INTO ${tableName} ${NameList}
+                VALUES ${DataList}
+                ON DUPLICATE KEY UPDATE
+                lastUpdated = VALUES(lastUpdated),
+                status = VALUES(status)`
+            await sql.query(query)
+        } catch (err) {
+            logger.error(err);
         }
     },
     getAllData: async (tableName) => {
