@@ -1,4 +1,6 @@
 const axios = require('axios');
+const log4js = require("log4js");
+const logger = log4js.getLogger("igwService");
 
 var methods = {};
 
@@ -31,13 +33,13 @@ const httpCall = async (httpOptions) => {
 methods.convertToMySQLDateTime = (dateString) => {
     try {
         if(dateString == undefined || dateString == null){
-            return null
+            return 'null'
         }
         return "'" + new Date(dateString).toISOString().slice(0, 19).replace('T', ' ') + "'";
     } catch (error) {
         // console.log(error)
         // logger.error('Error converting date:', error);
-        return null; // Return a default or null value if conversion fails
+        return 'null'; // Return a default or null value if conversion fails
     }
 }
 

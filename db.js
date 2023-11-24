@@ -1,4 +1,6 @@
 const mysql = require('mysql2/promise');
+var log4js = require("log4js");
+var logger = log4js.getLogger();
 
 const connectDB = async () => {
     try {
@@ -10,7 +12,7 @@ const connectDB = async () => {
         });
         return connection;
     } catch (error) {
-        handleAppError('Error connecting to the database:', error);
+        logger.error('Error connecting to the database:', error);
     }
 }
 

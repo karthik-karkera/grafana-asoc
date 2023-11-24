@@ -26,30 +26,50 @@ log4js.configure({
 
 
 // ALL APIs
-app.get('/application', controller.auth, controller.applicationList, (req, res) => {
-  res.send('Test')
-})
+app.get('/application', controller.auth, controller.applicationList)
 
-app.get('/issues', controller.auth, controller.issueList, (req, res) => {
-  res.send('Test')
-})
+app.get('/issues', controller.auth, controller.issueList)
 
-app.get('/scans', controller.auth, controller.scanList, (req, res) => {
-  res.send('Test')
-})
+app.get('/scans', controller.auth, controller.scanList)
+
+app.get('/subscriptionInfo', controller.auth, controller.subscriptionInfo)
+
+app.get('/appscanIssuesTrend', controller.auth, controller.appscanIssuesTrend)
+
+app.get('/codequalityTrend', controller.auth, controller.codequalityTrend)
+
+app.get('/fixRateTrend', controller.auth, controller.fixRateTrend)
+
+app.get('/codeQuality', controller.auth, controller.codeQuality)
+
+app.get('/day', controller.auth, controller.monthYear)
+
+app.get('/mapIssueId', controller.auth, controller.mapIssueId)
 
 //CRON JOB
-const hourlyJob = new CronJob('@hourly', async function () {
+const hourlyJob = new CronJob('@hourly', executeApiCalls(), null, true, null);
+
+// Function to execute the API calls
+async function executeApiCalls() {
   try {
     logger.info('Executing hourly cron job...');
-    let application = axios.get('http://localhost:8000/application');
-    let issues = axios.get('http://localhost:8000/issues');
-    let scans = axios.get('http://localhost:8000/scans');
+    await axios.get('http://localhost:8000/day');
+    await axios.get('http://localhost:8000/application');
+    await axios.get('http://localhost:8000/issues');
+    await axios.get('http://localhost:8000/scans');
+    await axios.get('http://localhost:8000/subscriptionInfo');
+    await axios.get('http://localhost:8000/appscanIssuesTrend');
+    await axios.get('http://localhost:8000/fixRateTrend');
+    await axios.get('http://localhost:8000/codeQuality');
+    await axios.get('http://localhost:8000/mapIssueId');
     logger.info('Hourly cron job executed.');
   } catch (error) {
-    logger.error('Error in hourly cron job:', error);
+    logger.error('Error in hourly cron job:', error.message);
   }
-}, null, false, null);
+}
+
+// Execute the API calls once immediately when the application starts
+// executeApiCalls()
 
 app.listen(process.env.SECURE_PORT, (error) => {
   if (error) throw error;
