@@ -1,8 +1,6 @@
 var log4js = require("log4js");
 var logger = log4js.getLogger();
 
-const connectionString = "server=LP1-AP-52178079\\SQLEXPRESS01;Database=asoc_grafana;Trusted_Connection=Yes;Driver={ODBC Driver 17 for SQL Server}";
-
 const queries = {
     createApplicationTable: async (sql) => {
         try {
