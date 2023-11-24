@@ -114,7 +114,6 @@ methods.issueList = async (req, res) => {
                     await issueResult?.data?.Items.map(issue => {
                         let statusUpdate = issue.Status == 'Fixed' ? issue.LastUpdated : null;
                         issueSet.set(issue.Id, issue.Status);
-                        // issueList.push({ 'issueId': issue.Id, 'appId': issue.ApplicationId, 'appName': appName, 'severity': issue.Severity, 'status': issue.Status, 'externalId': issue.ExternalId || null, 'dateCreated': issue.DateCreated, 'lastFound': issue.LastFound, 'lastUpdated': issue.LastUpdated, 'discoveryMethod': issue.DiscoveryMethod, 'scanName': issue.ScanName, 'issueType': `${issue.IssueType}`, 'statusUpdate': statusUpdate })
                         issueTemp.push({ 'issueId': issue.Id, 'appId': issue.ApplicationId, 'appName': appName, 'severity': issue.Severity, 'status': issue.Status, 'externalId': issue.ExternalId || null, 'dateCreated': issue.DateCreated, 'lastFound': issue.LastFound, 'lastUpdated': issue.LastUpdated, 'discoveryMethod': issue.DiscoveryMethod, 'scanName': issue.ScanName, 'issueType': `${issue.IssueType}`, 'statusUpdate': statusUpdate })
                     })
 

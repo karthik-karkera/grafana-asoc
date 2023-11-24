@@ -24,33 +24,20 @@ log4js.configure({
   }
 });
 
-
 // ALL APIs
 app.get('/application', controller.auth, controller.applicationList)
-
 app.get('/issues', controller.auth, controller.issueList)
-
 app.get('/scans', controller.auth, controller.scanList)
-
 app.get('/subscriptionInfo', controller.auth, controller.subscriptionInfo)
-
 app.get('/appscanIssuesTrend', controller.auth, controller.appscanIssuesTrend)
-
 app.get('/codequalityTrend', controller.auth, controller.codequalityTrend)
-
 app.get('/fixRateTrend', controller.auth, controller.fixRateTrend)
-
 app.get('/codeQuality', controller.auth, controller.codeQuality)
-
 app.get('/day', controller.auth, controller.monthYear)
-
 app.get('/mapIssueId', controller.auth, controller.mapIssueId)
 
-//CRON JOB
-const hourlyJob = new CronJob('@hourly', executeApiCalls(), null, true, null);
-
 // Function to execute the API calls
-async function executeApiCalls() {
+const executeApiCalls = async () => {
   try {
     logger.info('Executing hourly cron job...');
     await axios.get('http://localhost:8000/day');
@@ -68,8 +55,9 @@ async function executeApiCalls() {
   }
 }
 
-// Execute the API calls once immediately when the application starts
-// executeApiCalls()
+const hourlyJob = new CronJob('0 * * * *', executeApiCalls , null, false, null);
+
+executeApiCalls();
 
 app.listen(process.env.SECURE_PORT, (error) => {
   if (error) throw error;
