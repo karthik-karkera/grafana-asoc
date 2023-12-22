@@ -36,11 +36,13 @@ methods.applicationList = async (req, res) => {
         const appscanToken = req.token;
         let dbConnection = await db();
         let createTable = await queries.createApplicationTable(dbConnection);
+        let createCodeQualityTable = await queries.createPolicyTrendTable(dbConnection);
         const result = await service.getApplicationList(appscanToken);
         const scanResult = await service.getScanList(appscanToken);
         // CREATE A MAPPING OF LATEST SCAN DATE
         let tempScanResult = {};
         let tempScanId = {}
+        let policyData = { true: 0, false: 0};
         let fixedScanCount = {}
         if (scanResult.data.Items && scanResult.data.Items.length > 0) {
             scanResult?.data?.Items.forEach(item => {
@@ -60,9 +62,17 @@ methods.applicationList = async (req, res) => {
             })
             if (result.code === 200) {
                 let filterData = "";
-                let headerList = `(appId, appName, criticalIssues, highIssues, mediumIssues, lowIssues, businessImpact, lastUpdated, totalIssues, openIssues, informationalIssues, lastScanId, lastScanDate, dateCreated)`;
-                result.data.Items.map(item => filterData += `('${item.Id}', "${item.Name}", ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, "${item.BusinessImpact}", ${convertToMySQLDateTime(item.LastUpdated)}, ${item.TotalIssues}, ${item.OpenIssues}, ${item.InformationalIssues}, '${item.lastScanId}', ${convertToMySQLDateTime(item.lastScanDate)}, ${convertToMySQLDateTime(item.DateCreated)} ),`);
-                let b = await queries.updateApplicationTable(dbConnection, 'applicationstatistics', headerList, filterData.slice(0, -1));
+                let headerList = `(appId, appName, criticalIssues, highIssues, mediumIssues, lowIssues, businessImpact, lastUpdated, totalIssues, openIssues, informationalIssues, overallCompliance, lastScanId, lastScanDate, dateCreated)`;
+                result.data.Items.map(item => filterData += `('${item.Id}', "${item.Name}", ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, "${item.BusinessImpact}", ${convertToMySQLDateTime(item.LastUpdated)}, ${item.TotalIssues}, ${item.OpenIssues}, ${item.InformationalIssues}, '${item.OverallCompliance}', '${item.lastScanId}', ${convertToMySQLDateTime(item.lastScanDate)}, ${convertToMySQLDateTime(item.DateCreated)} ),`);
+                result.data.Items.map(item => policyData[item.OverallCompliance]++)
+                let updateApplication = await queries.updateApplicationTable(dbConnection, 'applicationstatistics', headerList, filterData.slice(0, -1));
+                
+                //policy trend
+                let headerListPolicy = `(policy, dateAdded)`;
+                totalPolicyCount = policyData.true + policyData.false;
+                policyInPercent = policyData.true / totalPolicyCount;
+                filterData = `(${policyInPercent}, ${convertToMySQLDateTime(new Date())})`
+                let updatePolicy = await queries.updatePolicyTrendTable(dbConnection, 'policyTrend', headerListPolicy, filterData);
                 logger.info('Application Added');
                 res.send("Application Added");
             }

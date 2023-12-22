@@ -4,7 +4,7 @@ var logger = log4js.getLogger();
 const queries = {
     createApplicationTable: async (sql) => {
         try {
-            const query = `CREATE TABLE IF NOT EXISTS applicationstatistics(appId VARCHAR(100) PRIMARY KEY, appName VARCHAR(30), criticalIssues INT, highIssues INT, mediumIssues INT, lowIssues INT, businessImpact VARCHAR(30), dateCreated DATETIME, lastUpdated DATETIME, lastScanDate DATETIME, lastScanId VARCHAR(50), totalIssues INT, openIssues INT, informationalIssues INT);`
+            const query = `CREATE TABLE IF NOT EXISTS applicationstatistics(appId VARCHAR(100) PRIMARY KEY, appName VARCHAR(30), criticalIssues INT, highIssues INT, mediumIssues INT, lowIssues INT, businessImpact VARCHAR(30), dateCreated DATETIME, lastUpdated DATETIME, lastScanDate DATETIME, lastScanId VARCHAR(50), totalIssues INT, openIssues INT, overallCompliance VARCHAR(50), informationalIssues INT);`
             const result = await sql.query(query);
             return result;
         } catch (err) {
@@ -22,7 +22,7 @@ const queries = {
     },
     createFixGroupsTable: async (sql) => {
         try {
-            const query = `CREATE TABLE IF NOT EXISTS fixgroups(fixGroupId VARCHAR(50) PRIMARY KEY, appId VARCHAR(50), appName VARCHAR(100), fixGroupType VARCHAR(255), fixLocationEnitityType VARCHAR(100), severity VARCHAR(30), severityValue INT, totalIssues INT, activeIssues INT, issueType VARCHAR(255), issueTypeId VARCHAR(100), status VARCHAR(30), file VARCHAR(255), libraryName VARCHAR(255), dateCreated DATETIME, lastUpdated DATETIME )`;
+            const query = `CREATE TABLE IF NOT EXISTS fixgroups(fixGroupId VARCHAR(50) PRIMARY KEY, appId VARCHAR(50), appName VARCHAR(100), fixGroupType VARCHAR(255), fixLocationEnitityType VARCHAR(100), severity VARCHAR(30), severityValue INT, totalIssues INT, activeIssues INT, issueType VARCHAR(255), issueTypeId VARCHAR(100), status VARCHAR(30), file VARCHAR(255), libraryName VARCHAR(15000), dateCreated DATETIME, lastUpdated DATETIME )`;
             const result = await sql.query(query);
             return result;
         } catch (err) {
@@ -83,6 +83,15 @@ const queries = {
             throw err
         }
     },
+    createPolicyTrendTable: async (sql) => {
+        try {
+            const query = `CREATE TABLE IF NOT EXISTS policyTrend(policy VARCHAR(30), dateAdded DATE, PRIMARY KEY(policy, dateAdded))`
+            const result = await sql.query(query);
+            return result;
+        } catch (err) {
+            throw err
+        }
+    },
     updateApplicationTable: async (sql, tableName, NameList, DataList) => {
         try {
             const query = `INSERT INTO ${tableName} ${NameList}
@@ -98,6 +107,7 @@ const queries = {
                 lastUpdated = VALUES(lastUpdated), 
                 totalIssues = VALUES(totalIssues), 
                 openIssues = VALUES(openIssues),
+                overallCompliance = VALUES(overallCompliance),
                 lastScanId = VALUES(lastScanId),
                 lastScanDate = VALUES(lastScanDate)`
             const result = await sql.query(query)
@@ -244,6 +254,18 @@ const queries = {
             VALUES ${DataList}
             ON DUPLICATE KEY UPDATE
                 scanId = VALUES(scanId)`;
+            return sql.query(query)
+        }
+        catch (err) {
+            throw err;
+        }
+    },
+    updatePolicyTrendTable: async (sql, tableName, NameList, DataList) => {
+        try {
+            const query = `INSERT INTO ${tableName} ${NameList}
+            VALUES ${DataList}
+            ON DUPLICATE KEY UPDATE
+                policy = VALUES(policy)`;
             return sql.query(query)
         }
         catch (err) {
