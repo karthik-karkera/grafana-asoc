@@ -39,6 +39,8 @@ methods.applicationList = async (req, res) => {
         let createCodeQualityTable = await queries.createPolicyTrendTable(dbConnection);
         const result = await service.getApplicationList(appscanToken);
         const scanResult = await service.getScanList(appscanToken);
+        let applicationTableData = await queries.getAllData(dbConnection, 'applicationstatistics');
+        let applicationSet = new Map();
         // CREATE A MAPPING OF LATEST SCAN DATE
         let tempScanResult = {};
         let tempScanId = {}
@@ -56,14 +58,15 @@ methods.applicationList = async (req, res) => {
         if (result.data.Items && result.data.Items.length > 0) {
             await result.data.Items.forEach(item => {
                 if (tempScanResult[item.Id] != undefined) {
+                    applicationSet.set(item.Id, 'true');
                     item.lastScanDate = tempScanResult[item.Id],
-                        item.lastScanId = tempScanId[item.Id]
+                    item.lastScanId = tempScanId[item.Id]
                 }
             })
             if (result.code === 200) {
                 let filterData = "";
-                let headerList = `(appId, appName, criticalIssues, highIssues, mediumIssues, lowIssues, businessImpact, lastUpdated, totalIssues, openIssues, informationalIssues, overallCompliance, lastScanId, lastScanDate, dateCreated)`;
-                result.data.Items.map(item => filterData += `('${item.Id}', "${item.Name}", ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, "${item.BusinessImpact}", ${convertToMySQLDateTime(item.LastUpdated)}, ${item.TotalIssues}, ${item.OpenIssues}, ${item.InformationalIssues}, '${item.OverallCompliance}', '${item.lastScanId}', ${convertToMySQLDateTime(item.lastScanDate)}, ${convertToMySQLDateTime(item.DateCreated)} ),`);
+                let headerList = `(appId, appName, criticalIssues, highIssues, mediumIssues, lowIssues, businessImpact, lastUpdated, totalIssues, openIssues, informationalIssues, overallCompliance, status, lastScanId, lastScanDate, dateCreated)`;
+                result.data.Items.map(item => filterData += `('${item.Id}', "${item.Name}", ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, "${item.BusinessImpact}", ${convertToMySQLDateTime(item.LastUpdated)}, ${item.TotalIssues}, ${item.OpenIssues}, ${item.InformationalIssues}, '${item.OverallCompliance}', 'Open', '${item.lastScanId}', ${convertToMySQLDateTime(item.lastScanDate)}, ${convertToMySQLDateTime(item.DateCreated)} ),`);
                 result.data.Items.map(item => policyData[item.OverallCompliance]++)
                 let updateApplication = await queries.updateApplicationTable(dbConnection, 'applicationstatistics', headerList, filterData.slice(0, -1));
                 
@@ -76,6 +79,19 @@ methods.applicationList = async (req, res) => {
                 logger.info('Application Added');
                 res.send("Application Added");
             }
+        }
+
+        let appList = [];
+        await applicationTableData[0].map(async res => {
+            if (applicationSet.has(res.appId) == false && res.appId != undefined) {
+                appList.push({ 'appId': res.appId, 'status': 'Deleted' })
+            }
+        })
+        let filterData = '';
+        let headerList = `(appId, status)`;
+        if (await appList.length > 0) {
+            await appList.map(item => filterData += `("${item.appId}", "${item.status}"),`);
+            await queries.updateApplicationStatus(dbConnection, 'applicationstatistics', headerList, filterData.slice(0, -1));
         }
     } catch (err) {
         logger.error(err);
@@ -94,7 +110,7 @@ methods.issueList = async (req, res) => {
         let dbConnection = await db();
         let createIssueTable = await queries.createIssueTable(dbConnection);
         let createFixGroupTable = await queries.createFixGroupsTable(dbConnection);
-        const applicationList = await queries.getAllData(dbConnection, 'applicationstatistics');
+        const applicationList = await queries.getApplicationData(dbConnection, 'applicationstatistics');
         const issuesList = await queries.getAllData(dbConnection, 'issuestatistics');
         let issueSet = new Map();
         let fixGroupTemp = [];
@@ -140,7 +156,6 @@ methods.issueList = async (req, res) => {
                 throw err
             }
         })
-
         await Promise.all(issueData);
         // ADD FIX GROUP IN DB -- START
         let fixGroupFilterData = '';
@@ -322,7 +337,7 @@ methods.fixRateTrend = async (req, res) => {
         const appscanToken = req.token;
         let dbConnection = await db();
         let scanTable = await queries.createfixRateTrendTable(dbConnection);
-        let applicationDbData = await queries.getAllData(dbConnection, 'applicationstatistics');
+        let applicationDbData = await queries.getApplicationData(dbConnection, 'applicationstatistics');
         let issueDbData = await queries.getAllData(dbConnection, 'issuestatistics');
         let fixObj = {};
         applicationDbData[0].map(app => {
@@ -370,7 +385,7 @@ methods.codeQuality = async (req, res) => {
         let dbConnection = await db();
         let createCodeQualityTable = await queries.createcodeQualityTrendTable(dbConnection);
         let scanDbData = await queries.getAllData(dbConnection, 'scansstatistics');
-        let appDbData = await queries.getAllData(dbConnection, 'applicationstatistics');
+        let appDbData = await queries.getApplicationData(dbConnection, 'applicationstatistics');
         let scansObj = {};
         let lastScanDateObj = {}
         let applicationIdArray = {};

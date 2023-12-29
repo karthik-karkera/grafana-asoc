@@ -4,7 +4,7 @@ var logger = log4js.getLogger();
 const queries = {
     createApplicationTable: async (sql) => {
         try {
-            const query = `CREATE TABLE IF NOT EXISTS applicationstatistics(appId VARCHAR(100) PRIMARY KEY, appName VARCHAR(30), criticalIssues INT, highIssues INT, mediumIssues INT, lowIssues INT, businessImpact VARCHAR(30), dateCreated DATETIME, lastUpdated DATETIME, lastScanDate DATETIME, lastScanId VARCHAR(50), totalIssues INT, openIssues INT, overallCompliance VARCHAR(50), informationalIssues INT);`
+            const query = `CREATE TABLE IF NOT EXISTS applicationstatistics(appId VARCHAR(100) PRIMARY KEY, appName VARCHAR(30), criticalIssues INT, highIssues INT, mediumIssues INT, lowIssues INT, businessImpact VARCHAR(30), dateCreated DATETIME, lastUpdated DATETIME, lastScanDate DATETIME, lastScanId VARCHAR(50), totalIssues INT, status VARCHAR(10), openIssues INT, overallCompliance VARCHAR(50), informationalIssues INT);`
             const result = await sql.query(query);
             return result;
         } catch (err) {
@@ -109,7 +109,20 @@ const queries = {
                 openIssues = VALUES(openIssues),
                 overallCompliance = VALUES(overallCompliance),
                 lastScanId = VALUES(lastScanId),
+                status = VALUES(status),
                 lastScanDate = VALUES(lastScanDate)`
+            const result = await sql.query(query)
+            return result
+        } catch (err) {
+            throw err
+        }
+    },
+    updateApplicationStatus: async (sql, tableName, NameList, DataList) => {
+        try {
+            const query = `INSERT INTO ${tableName} ${NameList}
+            VALUES ${DataList}
+            ON DUPLICATE KEY UPDATE
+                status = VALUES(status)`
             const result = await sql.query(query)
             return result
         } catch (err) {
@@ -193,8 +206,10 @@ const queries = {
             const query = `INSERT INTO ${tableName} ${NameList}
             VALUES ${DataList}
             ON DUPLICATE KEY UPDATE
+            openIssues = VALUES(openIssues),
             totalIssues = VALUES(totalIssues),
             lastUpdated = VALUES(lastUpdated),
+            lastScanDate = VALUES(lastScanDate),
             fixCount = VALUES(fixCount),
             numOfDaysToFix = VALUES(numOfDaysToFix)`
             return sql.query(query)
@@ -233,6 +248,15 @@ const queries = {
     getAllData: async (sql, tableName) => {
         try {
             const query = `SELECT * FROM ${tableName}`;
+            return sql.query(query)
+        }
+        catch (err) {
+            throw err;
+        }
+    },
+    getApplicationData: async (sql, tableName) => {
+        try {
+            const query = `SELECT * FROM ${tableName} WHERE status='Open'`;
             return sql.query(query)
         }
         catch (err) {
