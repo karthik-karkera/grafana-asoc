@@ -31,7 +31,7 @@ const queries = {
     },
     createScanTable: async (sql) => {
         try {
-            const query = `CREATE TABLE IF NOT EXISTS scansstatistics(scanId VARCHAR(50) PRIMARY KEY, appId VARCHAR(100), appName VARCHAR(200), executionId VARCHAR(100), scanName VARCHAR(100), status VARCHAR(50), totalIssues INT, newIssues INT, criticalCount INT, highCount INT, mediumCount INT, lowCount INT, infoCount INT, newCriticalCount INT, newHighCount INT, newMediumCount INT, newLowCount INT, newInfoCount INT, technology VARCHAR(30), executionProgress VARCHAR(30), executionCount INT, dateCreated DATETIME, endDate DATETIME, lastUpdated DATETIME, appCreated DATETIME)`;
+            const query = `CREATE TABLE IF NOT EXISTS scansstatistics(scanId VARCHAR(50) PRIMARY KEY, appId VARCHAR(100), appName VARCHAR(200), executionId VARCHAR(100), scanName VARCHAR(100), status VARCHAR(50), totalIssues INT, newIssues INT, criticalCount INT, highCount INT, mediumCount INT, lowCount INT, infoCount INT, newCriticalCount INT, newHighCount INT, newMediumCount INT, newLowCount INT, newInfoCount INT, technology VARCHAR(30), executionProgress VARCHAR(30), dateCreated DATETIME, endDate DATETIME, lastUpdated DATETIME, appCreated DATETIME)`;
             const result = await sql.query(query);
             return result;
         } catch (err) {
@@ -92,6 +92,15 @@ const queries = {
             throw err
         }
     },
+    createApplicationTrendTable: async (sql) => {
+        try {
+            const query = `CREATE TABLE IF NOT EXISTS applicationtrend(applicationCount INT, dateAdded VARCHAR(30), PRIMARY KEY(dateAdded))`
+            const result = await sql.query(query);
+            return result;
+        } catch (err) {
+            throw err
+        }
+    },
     updateApplicationTable: async (sql, tableName, NameList, DataList) => {
         try {
             const query = `INSERT INTO ${tableName} ${NameList}
@@ -123,6 +132,18 @@ const queries = {
             VALUES ${DataList}
             ON DUPLICATE KEY UPDATE
                 status = VALUES(status)`
+            const result = await sql.query(query)
+            return result
+        } catch (err) {
+            throw err
+        }
+    },
+    updateApplicationTrendTable: async (sql, tableName, NameList, DataList) => {
+        try {
+            const query = `INSERT INTO ${tableName} ${NameList}
+            VALUES ${DataList}
+            ON DUPLICATE KEY UPDATE
+                applicationCount = VALUES(applicationCount)`
             const result = await sql.query(query)
             return result
         } catch (err) {

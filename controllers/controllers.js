@@ -35,7 +35,10 @@ methods.applicationList = async (req, res) => {
     try {
         const appscanToken = req.token;
         let dbConnection = await db();
+        let currYear = new Date().getFullYear();
+        let currMonth = new Date().getMonth() + 1;
         let createTable = await queries.createApplicationTable(dbConnection);
+        let createApplicationTrend = await queries.createApplicationTrendTable(dbConnection);
         let createCodeQualityTable = await queries.createPolicyTrendTable(dbConnection);
         const result = await service.getApplicationList(appscanToken);
         const scanResult = await service.getScanList(appscanToken);
@@ -69,6 +72,7 @@ methods.applicationList = async (req, res) => {
                 result.data.Items.map(item => filterData += `('${item.Id}', "${item.Name}", ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, "${item.BusinessImpact}", ${convertToMySQLDateTime(item.LastUpdated)}, ${item.TotalIssues}, ${item.OpenIssues}, ${item.InformationalIssues}, '${item.OverallCompliance}', 'Open', '${item.lastScanId}', ${convertToMySQLDateTime(item.lastScanDate)}, ${convertToMySQLDateTime(item.DateCreated)} ),`);
                 result.data.Items.map(item => policyData[item.OverallCompliance]++)
                 let updateApplication = await queries.updateApplicationTable(dbConnection, 'applicationstatistics', headerList, filterData.slice(0, -1));
+                await result.data.Items.sort((a,b) => new Date(a.DateCreated) - new Date(b.DateCreated));
                 
                 //policy trend
                 let headerListPolicy = `(policy, dateAdded)`;
@@ -76,6 +80,34 @@ methods.applicationList = async (req, res) => {
                 policyInPercent = policyData.true / totalPolicyCount;
                 filterData = `(${policyInPercent}, ${convertToMySQLDateTime(new Date())})`
                 let updatePolicy = await queries.updatePolicyTrendTable(dbConnection, 'policyTrend', headerListPolicy, filterData);
+
+                //applicationTrend
+                let headerApplication = `(dateAdded, applicationCount)`;
+                let filterApplicationData = '';
+                const monthlyCounts = {};
+                result.data.Items.forEach(item => {
+                    const date = new Date(item.DateCreated);
+                    const yearMonth = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+                  
+                    // Increment the count for the specific month
+                    monthlyCounts[yearMonth] = (monthlyCounts[yearMonth] || 0) + 1;
+                });
+                const startDate = new Date('2020-01-01');
+                const endDate = new Date(`${currYear}-${currMonth}`);
+                const months = [];
+                let currentMonth = new Date(startDate);
+                let totalCount = 0;
+                while (currentMonth <= endDate) {
+                const yearMonth = `${currentMonth.getFullYear()}-${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}`;
+                const count = monthlyCounts[yearMonth] || 0;
+                // console.log(`${yearMonth} ${count}`);
+                totalCount += count;
+                filterApplicationData += `('${yearMonth}', ${totalCount}),`;
+
+                // Move to the next month
+                currentMonth.setMonth(currentMonth.getMonth() + 1);
+                }
+                await queries.updateApplicationTrendTable(dbConnection, 'applicationtrend', headerApplication, filterApplicationData.slice(0, -1));
                 logger.info('Application Added');
                 res.send("Application Added");
             }
@@ -401,7 +433,7 @@ methods.codeQuality = async (req, res) => {
                     let issueMonth = issueDate.getMonth() + 1;
                     if(`${issueYear}-${issueMonth}` == `${currYear}-${currMonth}` && scan.status != 'Deleted'){
                         if (scan.technology == 'StaticAnalyzer') {
-                            let sastData = await service.getScansData(appscanToken, scan.scanId, 'SAST')
+                            let sastData = await service.getScansData(appscanToken, scan.scanId, 'SAST');
                             scansObj[scan.scanId] = sastData?.data?.LatestExecution?.NTotalLines || 0;
                         } else if (scan.technology == 'DynamicAnalyzer') {
                             let dastData = await service.getScansData(appscanToken, scan.scanId, 'DAST');
@@ -420,7 +452,9 @@ methods.codeQuality = async (req, res) => {
                     filterData += `('${scanId}', '${item.appName}', '${item.appId}', '${item.totalIssues}', '${item.criticalCount}','${item.highCount}','${item.mediumCount}','${item.lowCount}','${item.infoCount}','${scansObj[item.scanId]}', '${item.status}', '${item.technology}', ${convertToMySQLDateTime(item.dateCreated)}, ${convertToMySQLDateTime(today)}),`
                 }
             });
-            await queries.updatecodeQualityTable(dbConnection, 'codequalitytrend', headerList, filterData.slice(0, -1));
+            if(filterData != ''){
+                await queries.updatecodeQualityTable(dbConnection, 'codequalitytrend', headerList, filterData.slice(0, -1));
+            }
         }
         logger.info("Code Quality Data Added");
         res.send("Code Quality Data Added");
