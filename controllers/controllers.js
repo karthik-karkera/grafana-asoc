@@ -470,15 +470,31 @@ methods.monthYear = async (req, res) => {
         res.status(400).send('Authentication Error: Missing Token');
     }
     try {
-        const appscanToken = req.token;
         let dbConnection = await db();
         let createmonthYearTable = await queries.createmonthYearTable(dbConnection);
-        let year = new Date().getFullYear();
-        let month = new Date().getMonth() + 1;
-        let day = new Date().getDate();
         let headerList = `(year, month, date)`;
-        filterData = `(${year}, ${month}, ${day})`
-        await queries.updatemonthYearTable(dbConnection, 'monthyear', headerList, filterData);
+        let filterData = '';
+
+        const today = new Date();
+        const startDate = new Date('2020-01-01')
+        const currDate = new Date(startDate);
+
+        while(currDate <= today){
+            let year = currDate.getFullYear();
+            let month = currDate.getMonth() + 1;
+            let lastDateOfMonth;
+
+            if(currDate.getFullYear() === today.getFullYear() && currDate.getMonth() === today.getMonth()){
+                lastDateOfMonth = today.getDate();
+            }else{
+                lastDateOfMonth = new Date(year, month, 0).getDate();
+            }
+
+            filterData += `(${year}, ${month}, ${lastDateOfMonth}),`
+            currDate.setMonth(currDate.getMonth()+1);
+        }
+
+        await queries.updatemonthYearTable(dbConnection, 'monthyear', headerList, filterData.slice(0, -1));
         logger.info("Date Added");
         res.status(200).send("Date Added");
     } catch (err) {
