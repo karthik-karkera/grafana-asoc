@@ -21,8 +21,8 @@ methods.auth = async (req, res, next) => {
         req.token = result.data.Token;
         next();
     } catch (err) {
-        logger.error(err);
-        res.status(400).json({ 'message': err })
+        logger.error(err.message);
+        res.status(400).json({ 'message': err.message })
     }
 }
 
@@ -49,85 +49,117 @@ methods.applicationList = async (req, res) => {
         let tempScanId = {}
         let policyData = { true: 0, false: 0};
         let fixedScanCount = {}
-        if (scanResult.data.Items && scanResult.data.Items.length > 0) {
+        if (scanResult?.data.Items && scanResult?.data?.Items.length > 0) {
             scanResult?.data?.Items.forEach(item => {
-                if (!tempScanResult[item.AppId] || tempScanResult[item.AppId] < item.CreatedAt) {
-                    tempScanResult[item.AppId] = item.CreatedAt;
-                    tempScanId[item.AppId] = item.Id || '';
+                try{
+                    if (!tempScanResult[item.AppId] || tempScanResult[item.AppId] < item.CreatedAt) {
+                        tempScanResult[item.AppId] = item.CreatedAt;
+                        tempScanId[item.AppId] = item.Id || '';
+                    }
+                }catch(err){
+                    logger.error(err.message)
                 }
             })
         }
         // UPDATE THE RESULT ARRAY WITH LATEST SCAN DATE FROM SCANRESULT
-        if (result.data.Items && result.data.Items.length > 0) {
-            await result.data.Items.forEach(item => {
-                if (tempScanResult[item.Id] != undefined) {
-                    applicationSet.set(item.Id, 'true');
-                    item.lastScanDate = tempScanResult[item.Id],
-                    item.lastScanId = tempScanId[item.Id]
-                }
-            })
-            if (result.code === 200) {
-                let filterData = "";
-                let headerList = `(appId, appName, criticalIssues, highIssues, mediumIssues, lowIssues, businessImpact, lastUpdated, totalIssues, openIssues, informationalIssues, overallCompliance, status, lastScanId, lastScanDate, dateCreated)`;
-                result.data.Items.map(item => filterData += `('${item.Id}', "${item.Name}", ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, "${item.BusinessImpact}", ${convertToMySQLDateTime(item.LastUpdated)}, ${item.TotalIssues}, ${item.OpenIssues}, ${item.InformationalIssues}, '${item.OverallCompliance}', 'Open', '${item.lastScanId}', ${convertToMySQLDateTime(item.lastScanDate)}, ${convertToMySQLDateTime(item.DateCreated)} ),`);
-                result.data.Items.map(item => policyData[item.OverallCompliance]++)
-                let updateApplication = await queries.updateApplicationTable(dbConnection, 'applicationstatistics', headerList, filterData.slice(0, -1));
-                await result.data.Items.sort((a,b) => new Date(a.DateCreated) - new Date(b.DateCreated));
-                
-                //policy trend
-                let headerListPolicy = `(policy, dateAdded)`;
-                totalPolicyCount = policyData.true + policyData.false;
-                policyInPercent = policyData.true / totalPolicyCount;
-                filterData = `(${policyInPercent}, ${convertToMySQLDateTime(new Date())})`
-                let updatePolicy = await queries.updatePolicyTrendTable(dbConnection, 'policyTrend', headerListPolicy, filterData);
+        if (result?.data?.Items && result?.data?.Items.length > 0) {
+            try{
+                await result?.data?.Items.forEach(item => {
+                    try{
+                        if (tempScanResult[item.Id] != undefined) {
+                            applicationSet.set(item.Id, 'true');
+                            item.lastScanDate = tempScanResult[item.Id],
+                            item.lastScanId = tempScanId[item.Id]
+                        }
+                    }catch(err){
+                        logger.error(err.message);
+                    }
+                })
+                if (result.code === 200) {
+                    let filterData = "";
+                    let headerList = `(appId, appName, criticalIssues, highIssues, mediumIssues, lowIssues, businessImpact, lastUpdated, totalIssues, openIssues, informationalIssues, overallCompliance, status, lastScanId, lastScanDate, dateCreated)`;
+                    result?.data?.Items.map(item => filterData += `('${item.Id}', "${item.Name}", ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, "${item.BusinessImpact}", ${convertToMySQLDateTime(item.LastUpdated)}, ${item.TotalIssues}, ${item.OpenIssues}, ${item.InformationalIssues}, '${item.OverallCompliance}', 'Open', '${item.lastScanId}', ${convertToMySQLDateTime(item.lastScanDate)}, ${convertToMySQLDateTime(item.DateCreated)} ),`);
+                    result?.data?.Items.map(item => policyData[item.OverallCompliance]++)
+                    let updateApplication = await queries.updateApplicationTable(dbConnection, 'applicationstatistics', headerList, filterData.slice(0, -1));
+                    await result?.data?.Items.sort((a,b) => new Date(a.DateCreated) - new Date(b.DateCreated));
+                    
+                    //policy trend
+                    let headerListPolicy = `(policy, dateAdded)`;
+                    totalPolicyCount = policyData.true + policyData.false;
+                    policyInPercent = policyData.true / totalPolicyCount;
+                    filterData = `(${policyInPercent}, ${convertToMySQLDateTime(new Date())})`
+                    let updatePolicy = await queries.updatePolicyTrendTable(dbConnection, 'policyTrend', headerListPolicy, filterData);
 
-                //applicationTrend
-                let headerApplication = `(dateAdded, applicationCount)`;
-                let filterApplicationData = '';
-                const monthlyCounts = {};
-                result.data.Items.forEach(item => {
-                    const date = new Date(item.DateCreated);
-                    const yearMonth = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-                  
-                    // Increment the count for the specific month
-                    monthlyCounts[yearMonth] = (monthlyCounts[yearMonth] || 0) + 1;
-                });
-                const startDate = new Date('2020-01-01');
-                const endDate = new Date(`${currYear}-${currMonth}`);
-                const months = [];
-                let currentMonth = new Date(startDate);
-                let totalCount = 0;
-                while (currentMonth <= endDate) {
-                const yearMonth = `${currentMonth.getFullYear()}-${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}`;
-                const count = monthlyCounts[yearMonth] || 0;
-                // console.log(`${yearMonth} ${count}`);
-                totalCount += count;
-                filterApplicationData += `('${yearMonth}', ${totalCount}),`;
+                    //applicationTrend
+                    let headerApplication = `(dateAdded, applicationCount)`;
+                    let filterApplicationData = '';
+                    const monthlyCounts = {};
+                    result?.data?.Items.forEach(item => {
+                        try{
+                            const date = new Date(item.DateCreated);
+                            const yearMonth = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+                        
+                            // Increment the count for the specific month
+                            monthlyCounts[yearMonth] = (monthlyCounts[yearMonth] || 0) + 1;
+                        }catch(err){
+                            logger.error(err.message);
+                        }
+                    });
+                    const startDate = new Date('2020-01-01');
+                    const endDate = new Date(`${currYear}-${currMonth}`);
+                    const months = [];
+                    let currentMonth = new Date(startDate);
+                    let totalCount = 0;
+                    while (currentMonth <= endDate) {
+                        try{
+                        const yearMonth = `${currentMonth.getFullYear()}-${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}`;
+                        const count = monthlyCounts[yearMonth] || 0;
+                        totalCount += count;
+                        filterApplicationData += `('${yearMonth}', ${totalCount}),`;
 
-                // Move to the next month
-                currentMonth.setMonth(currentMonth.getMonth() + 1);
+                        currentMonth.setMonth(currentMonth.getMonth() + 1);
+                        currentMonth.setDate(1)
+                        currentMonth.setHours(0,0,0,0);
+                        }catch(err){
+                            logger.error(err.message);
+                        }
+                    }
+                    try{
+                        await queries.updateApplicationTrendTable(dbConnection, 'applicationtrend', headerApplication, filterApplicationData.slice(0, -1));
+                        logger.info('Application Added');
+                        res.send("Application Added");
+                    }catch(err){
+                        logger.error('Application Error :', err.message)
+                    }
                 }
-                await queries.updateApplicationTrendTable(dbConnection, 'applicationtrend', headerApplication, filterApplicationData.slice(0, -1));
-                logger.info('Application Added');
-                res.send("Application Added");
+            }catch(err){
+                logger.error(err.message);
             }
         }
 
         let appList = [];
         await applicationTableData[0].map(async res => {
+            try{
             if (applicationSet.has(res.appId) == false && res.appId != undefined) {
                 appList.push({ 'appId': res.appId, 'status': 'Deleted' })
+            }
+            }catch(err){
+                logger.error(err.message)
             }
         })
         let filterData = '';
         let headerList = `(appId, status)`;
         if (await appList.length > 0) {
-            await appList.map(item => filterData += `("${item.appId}", "${item.status}"),`);
-            await queries.updateApplicationStatus(dbConnection, 'applicationstatistics', headerList, filterData.slice(0, -1));
+            try{
+                await appList.map(item => filterData += `("${item.appId}", "${item.status}"),`);
+                await queries.updateApplicationStatus(dbConnection, 'applicationstatistics', headerList, filterData.slice(0, -1));
+            }catch(err){
+                logger.error(err.message);
+            }
         }
     } catch (err) {
-        logger.error(err);
-        res.status(404).json({ 'message': err })
+        logger.error(err.message);
+        res.status(400).json({ 'message': err.stack })
     }
 }
 
@@ -149,24 +181,20 @@ methods.issueList = async (req, res) => {
         let issueTemp = [];
         //Store Issue from db in MAP
 
-        let issueData = await applicationList[0].map(async app => {
+        for(const app of applicationList[0]){
             try {
                 let appId = app.appId;
-                let appName = app.appName
+                let appName = app.appName;
                 const issueResult = await service.getIssueList(appscanToken, appId);
                 const fixGroupResult = await service.getFixGroupList(appscanToken, appId);
-                if (fixGroupResult?.data.Items != undefined && fixGroupResult?.data.Items.length > 0) {
+                if (fixGroupResult?.data?.Items != undefined && fixGroupResult?.data?.Items.length > 0) {
                     let fixGroupList = [];
                     let filterData = "";
                     await fixGroupResult?.data?.Items.map(item => {
-                        // fixGroupList.push({ 'fixGroupId': item.Id, 'appId': item.AppId, 'appName': appName, 'fixGroupType': item.FixGroupType, 'fixLocationEnitityType': item.FixLocationEntityType, 'severity': item.Severity, 'severityValue': item.SeverityValue, 'totalIssues': item.NIssues, 'activeIssues': item.NOpenIssues, 'issueType': item.IssueType, 'issueTypeId': item.IssueTypeId, 'status': item.Status, 'file': item.File, 'libraryName': item.LibraryName, 'dateCreated': item.DateCreated, 'lastUpdated': item.LastUpdated })
                         fixGroupTemp.push({ 'fixGroupId': item.Id, 'appId': item.AppId, 'appName': appName, 'fixGroupType': item.FixGroupType, 'fixLocationEnitityType': item.FixLocationEntityType, 'severity': item.Severity, 'severityValue': item.SeverityValue, 'totalIssues': item.NIssues, 'activeIssues': item.NOpenIssues, 'issueType': item.IssueType, 'issueTypeId': item.IssueTypeId, 'status': item.Status, 'file': item.File, 'libraryName': item.LibraryName, 'dateCreated': item.DateCreated, 'lastUpdated': item.LastUpdated })
                     })
-                    // let headerList = `(fixGroupId, appId, appName,fixGroupType, fixLocationEnitityType, severity, severityValue, totalIssues, activeIssues, issueType, issueTypeId, status, file, libraryName, dateCreated, lastUpdated)`;
-                    // fixGroupList.map(item => filterData += `("${item.fixGroupId}", "${item.appId}", "${item.appName}", "${item.fixGroupType}", "${item.fixLocationEnitityType}", "${item.severity}", "${item.severityValue}", "${item.totalIssues}", "${item.activeIssues}", "${item.issueType}", "${item.issueTypeId}", "${item.status}", "${item.file}", "${item.libraryName}", ${convertToMySQLDateTime(item.dateCreated)}, ${convertToMySQLDateTime(item.lastUpdated)}),`);
-                    // await queries.updateFixGroupTable(dbConnection, 'fixgroups', headerList, filterData.slice(0, -1));
                 }
-                if (issueResult?.data?.Items != undefined && issueResult?.data.Items.length > 0) {
+                if (issueResult?.data?.Items != undefined && issueResult?.data?.Items.length > 0) {
                     let issueList = [];
                     let filterData = "";
                     await issueResult?.data?.Items.map(issue => {
@@ -177,25 +205,22 @@ methods.issueList = async (req, res) => {
 
                     try {
                         let headerList = `(issueId, appId, appName, severity, status, externalId, dateCreated, lastFound, lastUpdated, discoveryMethod, scanName, issueType, statusUpdate)`;
-                        // await issueList.map(item => filterData += `("${item.issueId}", "${item.appId}", "${item.appName}", "${item.severity}", "${item.status}", "${item.externalId}", ${convertToMySQLDateTime(item.dateCreated)}, ${convertToMySQLDateTime(item.lastFound)}, ${convertToMySQLDateTime(item.lastUpdated)}, "${item.discoveryMethod}", "${item.scanName}", '${item.issueType}', ${convertToMySQLDateTime(item.statusUpdate)}),`)
-                        // await queries.updateIssueTable(dbConnection, 'issueStatistics', headerList, filterData.slice(0, -1));
                     } catch (err) {
-                        throw err
+                        logger.error(err.message)
                     }
                 }
             }
             catch (err) {
-                throw err
-            }
-        })
-        await Promise.all(issueData);
+                logger.error(err.message, app.appId)
+            }                
+        }
+
         // ADD FIX GROUP IN DB -- START
         let fixGroupFilterData = '';
         let fixGroupHeaderList = `(fixGroupId, appId, appName,fixGroupType, fixLocationEnitityType, severity, severityValue, totalIssues, activeIssues, issueType, issueTypeId, status, file, libraryName, dateCreated, lastUpdated)`;
         fixGroupTemp.map(item => fixGroupFilterData += `("${item.fixGroupId}", "${item.appId}", "${item.appName}", "${item.fixGroupType}", "${item.fixLocationEnitityType}", "${item.severity}", "${item.severityValue}", "${item.totalIssues}", "${item.activeIssues}", "${item.issueType}", "${item.issueTypeId}", "${item.status}", "${item.file}", "${item.libraryName}", ${convertToMySQLDateTime(item.dateCreated)}, ${convertToMySQLDateTime(item.lastUpdated)}),`);
         await queries.updateFixGroupTable(dbConnection, 'fixgroups', fixGroupHeaderList, fixGroupFilterData.slice(0, -1));
         // ADD FIX GROUP IN DB -- END
-
         // ADD ISSUE LIST IN DB START
         let issueFilterData = '';
         let issueHeaderList = `(issueId, appId, appName, severity, status, externalId, dateCreated, lastFound, lastUpdated, discoveryMethod, scanName, issueType, statusUpdate)`;
@@ -206,15 +231,15 @@ methods.issueList = async (req, res) => {
         let issueList = [];
         let filterData = "";
         await issuesList[0].map(async issue => {
-            if (issueSet.has(issue.issueId) == false && issue.issueId != undefined && issue.status != 'Resolved') {
-                issueList.push({ 'issueId': issue.issueId, 'status': 'Resolved', 'statusUpdate': new Date() })
+            try{
+                if (issueSet.has(issue.issueId) == false && issue.issueId != undefined && issue.status != 'Resolved') {
+                    issueList.push({ 'issueId': issue.issueId, 'status': 'Resolved', 'statusUpdate': new Date() })
+                }
+            }catch(err){
+                logger.error(err.message)
             }
         })
         let headerList = `(issueId, status, statusUpdate)`;
-        // if (await issueList.length > 0) {
-        //     await issueList.map(item => filterData += `("${item.issueId}", "${item.status}", ${convertToMySQLDateTime(item.statusUpdate)}),`);
-        //     await queries.updateIssueTable(dbConnection, 'issueStatistics', headerList, filterData.slice(0, -1));
-        // }
         logger.info('Issues Added');
         res.status(200).json({ message: 'Issues Added' });
     } catch (err) {
@@ -240,10 +265,21 @@ methods.scanList = async (req, res) => {
         if (scanResult?.data?.Items != undefined && scanResult?.data.Items.length > 0) {
             let scanList = [];
             let filterData = "";
-            scanResult?.data?.Items.map(async scan => {
-                scanSet.set(scan.Id, 'true');
-                scanList.push({ 'scanId': scan.Id, 'appId': scan.AppId, 'scanName': scan.Name, 'appName': scan.AppName, 'executionId': scan.LatestExecution?.Id, 'status': scan?.LatestExecution?.Status, 'totalIssues': scan?.LatestExecution?.NIssuesFound || 0, 'newIssues': scan?.LatestExecution?.NNewAppIssues || 0, 'criticalCount': scan?.LatestExecution?.NCriticalIssues || 0, 'highCount': scan?.LatestExecution?.NHighIssues || 0, 'mediumCount': scan?.LatestExecution?.NMediumIssues || 0, 'lowCount': scan?.LatestExecution.NLowIssues || 0, 'infoCount': scan?.LatestExecution.NInfoIssues || 0, 'newCriticalCount': scan?.LatestExecution?.NNewAppCriticalIssues || 0, 'newHighCount': scan?.LatestExecution?.NNewAppHighIssues || 0, 'newMediumCount': scan?.LatestExecution?.NNewAppMediumIssues || 0, 'newLowCount': scan?.LatestExecution?.NNewAppLowIssues || 0, 'newInfoCount': scan?.LatestExecution?.NNewAppInfoIssues || 0, 'technology': scan.Technology, 'executionProgress': scan?.LatestExecution?.ExecutionProgress, 'dateCreated': scan?.LatestExecution?.CreatedAt, 'endDate': scan?.LatestExecution?.ScanEndTime, 'lastUpdated': scan.LastModified, 'appCreated': scan.CreatedAt })
-            })
+            for(const scan of scanResult?.data?.Items){
+                try{
+                    scanSet.set(scan.Id, 'true');
+                    let executionId = await service.getExecutionList(appscanToken, scan.Id);
+                    let executionJSON = [];
+                    if(executionId.data.length>0){
+                        executionId.data.map(issueId => {
+                        executionJSON.push(issueId.Id)
+                        })
+                    }
+                    scanList.push({ 'scanId': scan.Id, 'appId': scan.AppId, 'scanName': scan.Name, 'appName': scan.AppName, 'executionId': JSON.stringify(executionJSON) || '', 'status': scan?.LatestExecution?.Status, 'totalIssues': scan?.LatestExecution?.NIssuesFound || 0, 'newIssues': scan?.LatestExecution?.NNewAppIssues || 0, 'criticalCount': scan?.LatestExecution?.NCriticalIssues || 0, 'highCount': scan?.LatestExecution?.NHighIssues || 0, 'mediumCount': scan?.LatestExecution?.NMediumIssues || 0, 'lowCount': scan?.LatestExecution?.NLowIssues || 0, 'infoCount': scan?.LatestExecution?.NInfoIssues || 0, 'newCriticalCount': scan?.LatestExecution?.NNewAppCriticalIssues || 0, 'newHighCount': scan?.LatestExecution?.NNewAppHighIssues || 0, 'newMediumCount': scan?.LatestExecution?.NNewAppMediumIssues || 0, 'newLowCount': scan?.LatestExecution?.NNewAppLowIssues || 0, 'newInfoCount': scan?.LatestExecution?.NNewAppInfoIssues || 0, 'technology': scan.Technology, 'executionProgress': scan?.LatestExecution?.ExecutionProgress, 'dateCreated': scan?.LatestExecution?.CreatedAt, 'endDate': scan?.LatestExecution?.ScanEndTime, 'lastUpdated': scan.LastModified, 'appCreated': scan.CreatedAt })
+                }catch(err){
+                    logger.error(err.message)
+                }
+            }
             let headerList = `(scanId, appId, scanName, appName, executionId, status, totalIssues, newIssues, criticalCount, highCount, mediumCount, lowCount, infoCount, newCriticalCount, newHighCount, newMediumCount, newLowCount, newInfoCount, technology, executionProgress, dateCreated, endDate, lastUpdated, appCreated)`;
             scanList.map(item => filterData += `('${item.scanId}', '${item.appId}', '${item.scanName}', '${item.appName}', '${item.executionId}', '${item.status}', '${item.totalIssues}', '${item.newIssues}', '${item.criticalCount}', '${item.highCount}','${item.mediumCount}','${item.lowCount}','${item.infoCount}', '${item.newCriticalCount}','${item.newHighCount}','${item.newMediumCount}','${item.newLowCount}','${item.newInfoCount}', '${item.technology}', '${item.executionProgress}', ${convertToMySQLDateTime(item.dateCreated)}, ${convertToMySQLDateTime(item.endDate)}, ${convertToMySQLDateTime(item.lastUpdated)}, ${convertToMySQLDateTime(item.appCreated)}),`);
             await queries.updateScanTable(dbConnection, 'ScansStatistics', headerList, filterData.slice(0, -1));
@@ -258,7 +294,7 @@ methods.scanList = async (req, res) => {
         let headerList = `(scanId, status)`;
         if (await scanList.length > 0) {
             await scanList.map(item => filterData += `("${item.scanId}", "${item.status}"),`);
-            await queries.updateScanTable(dbConnection, 'ScansStatistics', headerList, filterData.slice(0, -1));
+            await queries.updateScanTableStatus(dbConnection, 'ScansStatistics', headerList, filterData.slice(0, -1));
         }
         logger.info('Scan Added');
         res.send('Scan Added')
@@ -324,8 +360,8 @@ methods.appscanIssuesTrend = async (req, res) => {
         })
         let filterData = "";
         if (result.code === 200) {
-            let headerList = `(appId, appName, criticalIssues, highIssues, mediumIssues, lowIssues, informationalIssues, businessImpact, lastUpdated, dateCreated, dateAdded, fixedIssues, openIssues, totalIssues)`;
-            result.data.Items.map(item => filterData += `('${item.Id}', '${item.Name}', ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, ${item.InformationalIssues}, "${item.BusinessImpact}", ${convertToMySQLDateTime(item.LastUpdated)},  ${convertToMySQLDateTime(item.DateCreated)}, ${convertToMySQLDateTime(new Date())}, ${fixObj[item.Id]?.fixedIssues || 0}, ${item.OpenIssues}, ${item.TotalIssues}),`)
+            let headerList = `(appId, appName, criticalIssues, highIssues, mediumIssues, lowIssues, informationalIssues, businessImpact, lastUpdated, dateCreated, dateAdded, fixedIssues, overallCompliance, openIssues, totalIssues)`;
+            result.data.Items.map(item => filterData += `('${item.Id}', '${item.Name}', ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, ${item.InformationalIssues}, "${item.BusinessImpact}", ${convertToMySQLDateTime(item.LastUpdated)},  ${convertToMySQLDateTime(item.DateCreated)}, ${convertToMySQLDateTime(new Date())}, ${fixObj[item.Id]?.fixedIssues || 0}, ${item.OverallCompliance}, ${item.OpenIssues}, ${item.TotalIssues}),`)
             await queries.updateIssueTrendTable(dbConnection, 'appscanissuetrend', headerList, filterData.slice(0, -1));
             logger.info('Issues Trend Added')
             res.send("Issues Trend Added");
@@ -402,7 +438,7 @@ methods.fixRateTrend = async (req, res) => {
         logger.info('Fix Rate Data Added')
         res.send("Fix Rate Data Added");
     } catch (err) {
-        logger.error(err.message, 'fixRateTrend');
+        logger.error(err.message);
         res.status(400).json({ 'message': err.message })
     }
 }
@@ -426,11 +462,11 @@ methods.codeQuality = async (req, res) => {
         let currMonth = today.getMonth() + 1;
 
         if (scanDbData[0] != undefined) {
-            await Promise.all(
-                scanDbData[0].map(async scan => {
-                    let issueDate = new Date(scan.endDate);
-                    let issueYear = issueDate.getFullYear();
-                    let issueMonth = issueDate.getMonth() + 1;
+            for(const scan of scanDbData[0]){
+                let issueDate = new Date(scan.endDate);
+                let issueYear = issueDate.getFullYear();
+                let issueMonth = issueDate.getMonth() + 1;
+                try{    
                     if(`${issueYear}-${issueMonth}` == `${currYear}-${currMonth}` && scan.status != 'Deleted'){
                         if (scan.technology == 'StaticAnalyzer') {
                             let sastData = await service.getScansData(appscanToken, scan.scanId, 'SAST');
@@ -442,8 +478,10 @@ methods.codeQuality = async (req, res) => {
                             scansObj[scan.scanId] = 0;
                         }
                     }
-                })
-            );
+                }catch(err){
+                    logger.error(err.message)
+                }        
+            }
             let filterData = "";
             let headerList = `(scanId, appName, appId, issuesCount, criticalIssue, highIssue, mediumIssue, lowIssue, infoIssue, executionCount, status, technology, lastScanDate, date)`;
             await scanDbData[0].map(async item => {
@@ -459,7 +497,7 @@ methods.codeQuality = async (req, res) => {
         logger.info("Code Quality Data Added");
         res.send("Code Quality Data Added");
     } catch (err) {
-        logger.error(err.message, ' - CodeQuality');
+        logger.error(err.message);
         res.status(400).json({ 'message': err.message })
     }
 }
@@ -515,24 +553,32 @@ methods.mapIssueId = async (req, res) => {
         let dbConnection = await db();
         let scanDbData = await queries.getAllData(dbConnection, 'scansstatistics');
         if (scanDbData[0].length > 0) {
-            await Promise.all(await scanDbData[0].map(async scan => {
-                if (scan.executionId && scan.status != 'Deleted') {
-                    let issueData = await service.getScanExecutionData(appscanToken, scan.executionId);
-                    if (issueData.data.Items.length > 0) {
-                        issueData.data.Items.map(issue => {
-                            if (issueSet[issue.Id] == undefined) {
-                                issueSet[issue.Id] = { 'executionId': scan.executionId, 'scanId': scan.scanId, 'dateCreated': scan.endDate, 'status': scan.status };
-                            }
-                            else if (issueSet[issue.Id] && issueSet[issue.Id].dateCreated < scan?.endDate) {
-                                issueSet[issue.Id].dateCreated = scan.endDate;
-                                issueSet[issue.Id].scanId = scan.scanId;
-                            }
-                        })
+            for(const scan of scanDbData[0]){
+                if (scan.executionId && scan.executionId != 'undefined' && scan.status != 'Deleted') {
+                    let executionIdArray = scan.executionId;
+                    for(let executionId of executionIdArray){
+                        try{
+                            let issueData = await service.getScanExecutionData(appscanToken, executionId);
+                            if (issueData.data.Items.length > 0) {
+                                issueData.data.Items.map(issue => {
+                                    if (issueSet[issue.Id] == undefined) {
+                                        issueSet[issue.Id] = { 'executionId': scan.executionId, 'scanId': scan.scanId, 'dateCreated': scan.endDate, 'status': scan.status };
+                                        issueSet[issue.Id] = { 'scanId': scan.scanId, 'lastFound': issue.LastFound, 'status': scan.status };
+                                    }
+                                    else if(issueSet[issue.Id].scanId != undefined){
+                                        issueSet[issue.Id].lastFound = scan.LastFound;
+                                        issueSet[issue.Id].scanId = scan.scanId;
+                                    }
+                                })
+                            }                        
+                        }catch(err){
+                            logger.error(err.message);
+                        }
                     }
                 } else if (scan.status == 'Deleted') {
                     deletedData.push({scanId: scan.scanId, status: 'Deleted'})
                 }
-            }))
+            }
         }
         let filterData = "";
         let filterDeletedData = '';

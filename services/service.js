@@ -36,6 +36,16 @@ methods.getScanList = async (appscanToken) => {
     }
 }
 
+methods.getExecutionList = async (appscanToken, scanId) => {
+    try {
+        const url = constants.SCAN_EXECUTION_COUNT.replace('${scanId}', scanId);
+        return await util.httpRequest(url, appscanToken, "GET")
+    }
+    catch (err) {
+        throw err
+    }
+}
+
 methods.getFixGroupList = async (appscanToken, appId) => {
     try {
         const url = constants.FIX_GROUPS.replace('${appId}', appId);

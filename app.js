@@ -39,16 +39,19 @@ app.get('/mapIssueId', controller.auth, controller.mapIssueId)
 // Function to execute the API calls
 const executeApiCalls = async () => {
   try {
+    const axiosConfig = {
+      timeout: 18000000,
+    };
     logger.info('Executing hourly cron job...');
-    await axios.get('http://localhost:8000/day');
-    await axios.get('http://localhost:8000/application');
-    await axios.get('http://localhost:8000/issues');
-    await axios.get('http://localhost:8000/scans');
-    await axios.get('http://localhost:8000/subscriptionInfo');
-    await axios.get('http://localhost:8000/appscanIssuesTrend');
-    await axios.get('http://localhost:8000/fixRateTrend');
-    await axios.get('http://localhost:8000/codeQuality');
-    await axios.get('http://localhost:8000/mapIssueId');
+    await axios.get('http://localhost:8000/day',axiosConfig);
+    await axios.get('http://localhost:8000/application',axiosConfig);
+    await axios.get('http://localhost:8000/issues',axiosConfig);
+    await axios.get('http://localhost:8000/scans',axiosConfig);
+    await axios.get('http://localhost:8000/subscriptionInfo',axiosConfig);
+    await axios.get('http://localhost:8000/appscanIssuesTrend',axiosConfig);
+    await axios.get('http://localhost:8000/fixRateTrend',axiosConfig);
+    await axios.get('http://localhost:8000/codeQuality',axiosConfig);
+    await axios.get('http://localhost:8000/mapIssueId',axiosConfig);
     logger.info('Hourly cron job executed.');
   } catch (error) {
     logger.error('Error in hourly cron job:', error.message);
@@ -59,9 +62,11 @@ const hourlyJob = new CronJob('0 * * * *', executeApiCalls , null, false, null);
 
 executeApiCalls();
 
-app.listen(process.env.SECURE_PORT, (error) => {
+const server = app.listen(process.env.SECURE_PORT, (error) => {
   if (error) throw error;
   logger.info(`Running on ${process.env.SECURE_PORT}`);
   hourlyJob.start();
 })
 
+server.keepAliveTimeout = 15 * 100000;
+server.headersTimeout = 16 * 100000;

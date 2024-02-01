@@ -9,6 +9,7 @@ var constants = {
     DAST_SCAN_DATA: '/api/v2/Scans/DynamicAnalyzer/${scanId}',
     SAST_SCAN_DATA: '/api/v2/Scans/StaticAnalyzer/${scanId}',
     SCAN_EXECUTION_DATA: '/api/v2/Issues/ScanExecution/${executionId}?applyPolicies=Select&$skip=0&$orderby=IssueType%20asc&$select=ApplicationId,Severity,Status,IssueType,DateCreated,IssueTypeGuid,Location,FixGroupId,LastFound,LastUpdated,Cve,Id&$inlinecount=allPages',
+    SCAN_EXECUTION_COUNT: '/api/v2/Scans/${scanId}/Executions',
 }
 
 module.exports = constants;
