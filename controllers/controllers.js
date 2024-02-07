@@ -314,20 +314,25 @@ methods.subscriptionInfo = async (req, res) => {
         let dbConnection = await db();
         let scanTable = await queries.createSubscriptionTable(dbConnection);
         let subscriptionDetails = await service.getSubscriptionInfo(appscanToken);
-        let subInfo = {};
-        subInfo = {
-            'subscriptionId': subscriptionDetails?.data?.Subscriptions[0]?.SubscriptionId,
-            'tenantId': subscriptionDetails?.data.TenantId,
-            'offeringType': subscriptionDetails?.data?.Subscriptions[0]?.OfferingType,
-            'scansCompleted': subscriptionDetails?.data?.Subscriptions[0]?.NTakenSeats,
-            'totalScan': subscriptionDetails?.data?.Subscriptions[0]?.NSeats,
-            'purchaseSupplier': subscriptionDetails?.data?.Subscriptions[0]?.PurchaseSupplier,
-            'expirationDate': subscriptionDetails?.data?.Subscriptions[0]?.ExpirationDate,
-            'purchaseDate': subscriptionDetails?.data?.Subscriptions[0]?.PurchaseDate,
+        let subInfo = [];
+        
+        let subscriptionLists = subscriptionDetails?.data?.Subscriptions;
+        for(let sub of subscriptionLists){
+            subInfo.push({
+                'subscriptionId': sub.SubscriptionId,
+                'tenantId': subscriptionDetails?.data.TenantId,
+                'offeringType': sub.OfferingType,
+                'scansCompleted': sub.NTakenSeats,
+                'totalScan': sub.NSeats,
+                'purchaseSupplier': sub.PurchaseSupplier,
+                'expirationDate': sub.ExpirationDate,
+                'purchaseDate': sub.PurchaseDate
+            })
         }
+        let filterData = '';
         let headerList = `(subscriptionId, tenantId, offeringType, scansCompleted, totalScan, purchaseSupplier, expirationDate, purchaseDate)`;
-        let filterData = `('${subInfo.subscriptionId}', '${subInfo.tenantId}', '${subInfo.offeringType}', '${subInfo.scansCompleted}', '${subInfo.totalScan}', '${subInfo.purchaseSupplier}', ${convertToMySQLDateTime(subInfo.expirationDate)}, ${convertToMySQLDateTime(subInfo.purchaseDate)})`;
-        let sqlResponse = await queries.updateSubscriptionTable(dbConnection, 'subscriptionstatistics', headerList, filterData);
+        await subInfo.map(item => filterData +=`('${item.subscriptionId}', '${item.tenantId}', '${item.offeringType}', '${item.scansCompleted}', '${item.totalScan}', '${item.purchaseSupplier}', ${convertToMySQLDateTime(item.expirationDate)}, ${convertToMySQLDateTime(item.purchaseDate)}),`);
+        let sqlResponse = await queries.updateSubscriptionTable(dbConnection, 'subscriptionstatistics', headerList, filterData.slice(0, -1));
         if (sqlResponse == 'DATA ADDED') {
             logger.info("Subscription Data Added")
             res.send("Subscription Data Added")
@@ -355,7 +360,11 @@ methods.appscanIssuesTrend = async (req, res) => {
         let issueDbData = await queries.getIssueData(dbConnection, 'issuestatistics');
         issueDbData[0].map(issue => {
             if (issue.status == 'Fixed' || issue.status) {
+                try{
                 fixObj[issue.appId]?.fixedIssues ? fixObj[issue.appId].fixedIssues += 1 : fixObj[issue.appId] = { "fixedIssues": 1 }
+                }catch(err){
+                    logger.error(err)
+                }
             }
         })
         let filterData = "";
@@ -385,7 +394,7 @@ methods.codequalityTrend = async (req, res) => {
         let filterData = "";
         if (result.code === 200) {
             let headerList = `(appId, appName, criticalIssues, highIssues, mediumIssues, lowIssues, informationalIssues, businessImpact, lastUpdated, dateCreated, dateAdded, openIssues, totalIssues)`;
-            result.data.Items.map(item => filterData += `('${item.Id}', '${item.Name}', ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, ${item.InformationalIssues}, '${item.BusinessImpact}', ${convertToMySQLDateTime(item.LastUpdated)},  ${convertToMySQLDateTime(item.DateCreated)}, ${convertToMySQLDateTime(new Date())}, ${item.OpenIssues}, ${item.TotalIssues}),`);
+            result?.data?.Items.map(item => filterData += `('${item.Id}', '${item.Name}', ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, ${item.InformationalIssues}, '${item.BusinessImpact}', ${convertToMySQLDateTime(item.LastUpdated)},  ${convertToMySQLDateTime(item.DateCreated)}, ${convertToMySQLDateTime(new Date())}, ${item.OpenIssues}, ${item.TotalIssues}),`);
             await queries.updateIssueTrendTable(dbConnection, 'appscanissuetrend', headerList, filterData.slice(0, -1));
             logger.info('Code Quality Data Added')
             res.send("Code Quality Data Added");
