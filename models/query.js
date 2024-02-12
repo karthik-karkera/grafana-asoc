@@ -13,7 +13,7 @@ const queries = {
     },
     createIssueTable: async (sql) => {
         try {
-            const query = `CREATE TABLE IF NOT EXISTS issuestatistics(issueId VARCHAR(50) PRIMARY KEY, appId VARCHAR(100), scanId VARCHAR(100), appName VARCHAR(200), severity VARCHAR(50), status VARCHAR(50), externalId VARCHAR(100), dateCreated DATETIME, lastFound DATETIME, lastUpdated DATETIME, discoveryMethod VARCHAR(1000), scanName VARCHAR(100), issueType VARCHAR(200), statusUpdate DATETIME)`;
+            const query = `CREATE TABLE IF NOT EXISTS issuestatistics(issueId VARCHAR(50) PRIMARY KEY, appId VARCHAR(100), scanId VARCHAR(100), appName VARCHAR(200), severity VARCHAR(50), status VARCHAR(50), externalId VARCHAR(100), dateCreated DATETIME, lastFound DATETIME, lastUpdated DATETIME, discoveryMethod VARCHAR(1000), scanName VARCHAR(250), issueType VARCHAR(200), statusUpdate DATETIME)`;
             const result = await sql.query(query);
             return result;
         } catch (err) {
@@ -31,7 +31,7 @@ const queries = {
     },
     createScanTable: async (sql) => {
         try {
-            const query = `CREATE TABLE IF NOT EXISTS scansstatistics(scanId VARCHAR(50) PRIMARY KEY, appId VARCHAR(100), appName VARCHAR(200), executionId JSON, scanName VARCHAR(100), status VARCHAR(50), totalIssues INT, newIssues INT, criticalCount INT, highCount INT, mediumCount INT, lowCount INT, infoCount INT, newCriticalCount INT, newHighCount INT, newMediumCount INT, newLowCount INT, newInfoCount INT, technology VARCHAR(30), executionProgress VARCHAR(30), dateCreated DATETIME, endDate DATETIME, lastUpdated DATETIME, appCreated DATETIME)`;
+            const query = `CREATE TABLE IF NOT EXISTS scansstatistics(scanId VARCHAR(50) PRIMARY KEY, appId VARCHAR(100), appName VARCHAR(200), executionId JSON, scanName VARCHAR(250), status VARCHAR(50), totalIssues INT, newIssues INT, criticalCount INT, highCount INT, mediumCount INT, lowCount INT, infoCount INT, newCriticalCount INT, newHighCount INT, newMediumCount INT, newLowCount INT, newInfoCount INT, technology VARCHAR(30), executionProgress VARCHAR(30), dateCreated DATETIME, endDate DATETIME, lastUpdated DATETIME, appCreated DATETIME)`;
             const result = await sql.query(query);
             return result;
         } catch (err) {
@@ -160,7 +160,7 @@ const queries = {
                 lastFound = VALUES(lastFound),
                 dateCreated = VALUES(dateCreated),
                 severity = VALUES(severity),
-                statusUpdate = CASE WHEN VALUES(status) IN ('Fixed', 'Resolved') AND (status = 'Open' OR status = 'New' OR status = 'Reopened' OR status = 'Noise' OR status = 'InProgress') THEN VALUES(statusUpdate) ELSE statusUpdate END,
+                statusUpdate = CASE WHEN VALUES(status) IN ('Fixed', 'Resolved', 'Noise', 'Passed') AND (status = 'Open' OR status = 'New' OR status = 'Reopened' OR status = 'InProgress') THEN VALUES(statusUpdate) ELSE statusUpdate END,
                 status = VALUES(status)`
             return await sql.query(query);
         } catch (err) {
@@ -314,7 +314,7 @@ const queries = {
     },
     getIssueData: async (sql, tableName) => {
         try {
-            const query = `SELECT * FROM ${tableName} WHERE status='Fixed'`;
+            const query = `SELECT * FROM ${tableName} WHERE status IN ('Fixed','Passed','Noise')`;
             return sql.query(query)
         }
         catch (err) {

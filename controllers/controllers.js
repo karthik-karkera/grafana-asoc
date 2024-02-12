@@ -198,9 +198,11 @@ methods.issueList = async (req, res) => {
                     let issueList = [];
                     let filterData = "";
                     await issueResult?.data?.Items.map(issue => {
-                        let statusUpdate = issue.Status == 'Fixed' ? issue.LastUpdated : null;
+                        if(issue.ApplicationId && appName && issue.Status){
+                        let statusUpdate = issue.Status == 'Fixed' || issue.Status == 'Passed' || issue.Status == 'Noise' ? issue.LastUpdated : null;
                         issueSet.set(issue.Id, issue.Status);
                         issueTemp.push({ 'issueId': issue.Id, 'appId': issue.ApplicationId, 'appName': appName, 'severity': issue.Severity, 'status': issue.Status, 'externalId': issue.ExternalId || null, 'dateCreated': issue.DateCreated, 'lastFound': issue.LastFound, 'lastUpdated': issue.LastUpdated, 'discoveryMethod': issue.DiscoveryMethod, 'scanName': issue.ScanName, 'issueType': `${issue.IssueType}`, 'statusUpdate': statusUpdate })
+                        }
                     })
 
                     try {
@@ -428,7 +430,7 @@ methods.fixRateTrend = async (req, res) => {
             const issueYear = issueDate.getFullYear();
             let currMonth = new Date().getMonth() + 1;
             const issueMonth = issueDate.getMonth() + 1;
-            if (issue.status == 'Fixed') {
+            if (issue.status == 'Fixed' || issue.status == 'Passed' || issue.status == 'Noise') {
                 if (`${issueYear}-${issueMonth}` == `${currYear}-${currMonth}`) {
                     let numOfDays = (issue.statusUpdate - issue.dateCreated) / (1000 * 60 * 60 * 24);
                     fixObj[issue.appId].numOfDays += numOfDays;
