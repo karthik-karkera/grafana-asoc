@@ -66,10 +66,10 @@ methods.applicationList = async (req, res) => {
             try{
                 await result?.data?.Items.forEach(item => {
                     try{
+                        applicationSet.set(item.Id, 'true');
                         if (tempScanResult[item.Id] != undefined) {
-                            applicationSet.set(item.Id, 'true');
                             item.lastScanDate = tempScanResult[item.Id],
-                            item.lastScanId = tempScanId[item.Id]
+                            item.lastScanId = tempScanId[item.Id] == undefined ? null : tempScanId[item.Id]
                         }
                     }catch(err){
                         logger.error(err.message);
