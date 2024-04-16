@@ -40,8 +40,9 @@ methods.applicationList = async (req, res) => {
         let createTable = await queries.createApplicationTable(dbConnection);
         let createApplicationTrend = await queries.createApplicationTrendTable(dbConnection);
         let createCodeQualityTable = await queries.createPolicyTrendTable(dbConnection);
-        const result = await service.getApplicationList(appscanToken);
-        const scanResult = await service.getScanList(appscanToken);
+        const result = await fetchAllData(service.getApplicationList, appscanToken, 200); // Get Application List
+        const scanResult = await fetchAllData(service.getScanList, appscanToken, 200) // Get Scan List
+
         let applicationTableData = await queries.getAllData(dbConnection, 'applicationstatistics');
         let applicationSet = new Map();
         // CREATE A MAPPING OF LATEST SCAN DATE
@@ -77,6 +78,7 @@ methods.applicationList = async (req, res) => {
                 })
                 if (result.code === 200) {
                     let filterData = "";
+                    let filterDataPolicy = "";
                     let headerList = `(appId, appName, criticalIssues, highIssues, mediumIssues, lowIssues, businessImpact, lastUpdated, totalIssues, openIssues, informationalIssues, overallCompliance, status, lastScanId, lastScanDate, dateCreated)`;
                     result?.data?.Items.map(item => filterData += `('${item.Id}', "${item.Name}", ${item.CriticalIssues}, ${item.HighIssues}, ${item.MediumIssues}, ${item.LowIssues}, "${item.BusinessImpact}", ${convertToMySQLDateTime(item.LastUpdated)}, ${item.TotalIssues}, ${item.OpenIssues}, ${item.InformationalIssues}, '${item.OverallCompliance}', 'Open', '${item.lastScanId}', ${convertToMySQLDateTime(item.lastScanDate)}, ${convertToMySQLDateTime(item.DateCreated)} ),`);
                     result?.data?.Items.map(item => policyData[item.OverallCompliance]++)
@@ -87,8 +89,8 @@ methods.applicationList = async (req, res) => {
                     let headerListPolicy = `(policy, dateAdded)`;
                     totalPolicyCount = policyData.true + policyData.false;
                     policyInPercent = policyData.true / totalPolicyCount;
-                    filterData = `(${policyInPercent}, ${convertToMySQLDateTime(new Date())})`
-                    let updatePolicy = await queries.updatePolicyTrendTable(dbConnection, 'policyTrend', headerListPolicy, filterData);
+                    filterDataPolicy = `(${policyInPercent}, ${convertToMySQLDateTime(new Date())})`
+                    let updatePolicy = await queries.updatePolicyTrendTable(dbConnection, 'policyTrend', headerListPolicy, filterDataPolicy);
 
                     //applicationTrend
                     let headerApplication = `(dateAdded, applicationCount)`;
@@ -185,8 +187,9 @@ methods.issueList = async (req, res) => {
             try {
                 let appId = app.appId;
                 let appName = app.appName;
-                const issueResult = await service.getIssueList(appscanToken, appId);
-                const fixGroupResult = await service.getFixGroupList(appscanToken, appId);
+
+                const issueResult = await fetchAllData(service.getIssueList, appscanToken, 200, [appId]);
+                const fixGroupResult = await fetchAllData(service.getFixGroupList, appscanToken, 200, [appId]);
                 if (fixGroupResult?.data?.Items != undefined && fixGroupResult?.data?.Items.length > 0) {
                     let fixGroupList = [];
                     let filterData = "";
@@ -260,7 +263,7 @@ methods.scanList = async (req, res) => {
         const appscanToken = req.token;
         let dbConnection = await db();
         let scanTable = await queries.createScanTable(dbConnection);
-        const scanResult = await service.getScanList(appscanToken);
+        const scanResult = await fetchAllData(service.getScanList,appscanToken, 200);
         let scanTableData = await queries.getAllData(dbConnection, 'scansstatistics');
         let scanSet = new Map();
 
@@ -358,7 +361,7 @@ methods.appscanIssuesTrend = async (req, res) => {
         const appscanToken = req.token;
         let dbConnection = await db();
         let scanTable = await queries.createIssuesTrendTable(dbConnection);
-        let result = await service.getIssueTrend(appscanToken);
+        let result = await fetchAllData(service.getIssueTrend, appscanToken, 200);
         let issueDbData = await queries.getIssueData(dbConnection, 'issuestatistics');
         issueDbData[0].map(issue => {
             if (issue.status == 'Fixed' || issue.status) {
@@ -392,7 +395,7 @@ methods.codequalityTrend = async (req, res) => {
         const appscanToken = req.token;
         let dbConnection = await db();
         let scanTable = await queries.createIssuesTrendTable(dbConnection);
-        let result = await service.getIssueTrend(appscanToken);
+        let result = await fetchAllData(service.getIssueTrend, appscanToken, 200);
         let filterData = "";
         if (result.code === 200) {
             let headerList = `(appId, appName, criticalIssues, highIssues, mediumIssues, lowIssues, informationalIssues, businessImpact, lastUpdated, dateCreated, dateAdded, openIssues, totalIssues)`;
@@ -479,13 +482,16 @@ methods.codeQuality = async (req, res) => {
                 let issueMonth = issueDate.getMonth() + 1;
                 try{    
                     if(`${issueYear}-${issueMonth}` == `${currYear}-${currMonth}` && scan.status != 'Deleted'){
-                        if (scan.technology == 'StaticAnalyzer') {
+                        if (scan.technology == 'StaticAnalyzer' || scan.technology == 'IASTAnalyzer') {
                             let sastData = await service.getScansData(appscanToken, scan.scanId, 'SAST');
                             scansObj[scan.scanId] = sastData?.data?.LatestExecution?.NTotalLines || 0;
                         } else if (scan.technology == 'DynamicAnalyzer') {
                             let dastData = await service.getScansData(appscanToken, scan.scanId, 'DAST');
                             scansObj[scan.scanId] = dastData?.data?.LatestExecution?.NTestedEntities || 0;
-                        } else {
+                        } else if(scan.technology == 'ScaAnalyzer'){
+                            let dastData = await service.getScansData(appscanToken, scan.scanId, 'SCA');
+                            scansObj[scan.scanId] = dastData?.data?.LatestExecution?.NTestedEntities || 0;
+                        }else{
                             scansObj[scan.scanId] = 0;
                         }
                     }
@@ -563,14 +569,15 @@ methods.mapIssueId = async (req, res) => {
         let deletedData = []
         let dbConnection = await db();
         let scanDbData = await queries.getAllData(dbConnection, 'scansstatistics');
+        let issueDbData = await queries.getAllData(dbConnection, 'issuestatistics');
         if (scanDbData[0].length > 0) {
             for(const scan of scanDbData[0]){
-                if (scan.executionId && scan.executionId != 'undefined' && scan.status != 'Deleted') {
+                if (scan.executionId && scan.executionId != 'undefined' && scan.status != 'Deleted' && scan.status != 'Failed') {
                     let executionIdArray = scan.executionId;
                     for(let executionId of executionIdArray){
                         try{
-                            let issueData = await service.getScanExecutionData(appscanToken, executionId);
-                            if (issueData.data.Items.length > 0) {
+                            let issueData = await fetchAllData(service.getScanExecutionData, appscanToken, 200, [executionId]);
+                            if (Object.keys(issueData).length > 0 && issueData.data.Items.length > 0) {
                                 issueData.data.Items.map(issue => {
                                     if (issueSet[issue.Id] == undefined) {
                                         issueSet[issue.Id] = { 'executionId': scan.executionId, 'scanId': scan.scanId, 'dateCreated': scan.endDate, 'status': scan.status };
@@ -601,14 +608,19 @@ methods.mapIssueId = async (req, res) => {
                 issueList.push({ 'issueId': key, 'scanId': issueSet[key].scanId })
             }
         }
-        if(await issueList.length > 0){
-            issueList.map(async item => {
+
+        if (issueDbData[0].length > 0) {
+            let issueIdsFromDb = await issueDbData[0].map(issue => issue.issueId);
+            var filteredScanData = await issueList.filter(scan => issueIdsFromDb.includes(scan.issueId));
+        }
+        if(await filteredScanData.length > 0){
+            await filteredScanData.map(async item => {
                 filterData += `('${item.issueId}','${item.scanId}'),`
             });
             await queries.updateIssueScanId(dbConnection, 'issueStatistics', headerList, filterData.slice(0, -1));
         }
         if(await deletedData.length > 0){
-            deletedData.map(async item => {
+            await deletedData.map(async item => {
                 filterDeletedData += `'${item.scanId}',`
             })
             await queries.updateDeletedIssue(dbConnection, 'issueStatistics', headerList, `(${filterDeletedData.slice(0, -1)})`);
@@ -621,5 +633,36 @@ methods.mapIssueId = async (req, res) => {
         res.status(400).json({ 'message': err.message })
     }
 }
+
+const fetchAllData = async (serviceName, appscanToken, status, value) => {
+    let skipValue = 0;
+    let result = {};
+    try {
+        while(true){
+            try{
+                let resData = value && value.length > 0 ? await serviceName(appscanToken, skipValue, ...value) : await serviceName(appscanToken, skipValue);
+                if(resData.data.Count <= skipValue){
+                    break;
+                }
+                
+                if(resData && Object.keys(result).length == 0 && resData.code == status && resData.data.Items.length >= 0){
+                    result = resData;
+                }else if(resData && resData.code == status && resData.data.Items.length > 0){
+                    result.data.Items = [...resData?.data?.Items, ...result.data.Items]
+                }
+                if(skipValue > 15000) break;
+            }
+            catch(err){
+                logger.error(err?.response?.data.Message || err.message)
+            }
+            skipValue += 500;
+        }
+        return result;
+    } catch (error) {
+        console.error('Error fetching applications:', error);
+        throw error;
+    }
+};
+
 
 module.exports = methods;

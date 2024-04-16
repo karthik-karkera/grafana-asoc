@@ -6,9 +6,9 @@ const logger = log4js.getLogger("igwService");
 
 var methods = {}
 
-methods.getApplicationList = async (appscanToken) => {
+methods.getApplicationList = async (appscanToken, skipValue) => {
     try {
-        const url = constants.ASOC_APPLICATION_LIST;
+        const url = constants.ASOC_APPLICATION_LIST.replace('${skipValue}', skipValue);
         return await util.httpRequest(url, appscanToken, "GET")
     }
     catch (err) {
@@ -16,9 +16,9 @@ methods.getApplicationList = async (appscanToken) => {
     }
 }
 
-methods.getIssueList = async (appscanToken, appId) => {
+methods.getIssueList = async (appscanToken, skipValue, appId) => {
     try {
-        const url = constants.GET_ISSUE_APPLICATION_LIST.replace('${appId}', appId);
+        const url = constants.GET_ISSUE_APPLICATION_LIST.replace('${appId}', appId).replace('${skipValue}', skipValue);
         return await util.httpRequest(url, appscanToken, "GET");
     }
     catch (err) {
@@ -26,9 +26,9 @@ methods.getIssueList = async (appscanToken, appId) => {
     }
 }
 
-methods.getScanList = async (appscanToken) => {
+methods.getScanList = async (appscanToken, skipValue) => {
     try {
-        const url = constants.GET_ALL_SCAN_LIST;
+        const url = constants.GET_ALL_SCAN_LIST.replace('${skipValue}', skipValue);
         return await util.httpRequest(url, appscanToken, "GET")
     }
     catch (err) {
@@ -46,9 +46,9 @@ methods.getExecutionList = async (appscanToken, scanId) => {
     }
 }
 
-methods.getFixGroupList = async (appscanToken, appId) => {
+methods.getFixGroupList = async (appscanToken, skipValue, appId) => {
     try {
-        const url = constants.FIX_GROUPS.replace('${appId}', appId);
+        const url = constants.FIX_GROUPS.replace('${appId}', appId).replace('${skipValue}', skipValue);
         return await util.httpRequest(url, appscanToken, "GET")
     }
     catch (err) {
@@ -66,9 +66,9 @@ methods.getSubscriptionInfo = async (appscanToken) => {
     }
 }
 
-methods.getIssueTrend = async (appscanToken) => {
+methods.getIssueTrend = async (appscanToken, skipValue) => {
     try {
-        const url = constants.ASOC_APPLICATION_LIST;
+        const url = constants.ASOC_APPLICATION_LIST.replace('${skipValue}', skipValue);
         return await util.httpRequest(url, appscanToken, "GET")
     }
     catch (err) {
@@ -78,7 +78,7 @@ methods.getIssueTrend = async (appscanToken) => {
 
 methods.getScansData = async (appscanToken, scanId, technology) => {
     try {
-        const url = technology == 'SAST' ? constants.SAST_SCAN_DATA.replace('${scanId}', scanId) : technology == 'DAST' ? constants.DAST_SCAN_DATA.replace('${scanId}', scanId) : undefined
+        const url = technology == 'SAST' ? constants.SAST_SCAN_DATA.replace('${scanId}', scanId) : technology == 'DAST' ? constants.DAST_SCAN_DATA.replace('${scanId}', scanId) : technology == 'SCA' ? constants.SCA_SCAN_DATA.replace('${scanId}', scanId) : undefined
         if (url == undefined || scanId == undefined) {
             return "ERROR";
         } else {
@@ -90,9 +90,9 @@ methods.getScansData = async (appscanToken, scanId, technology) => {
     }
 }
 
-methods.getScanExecutionData = async (appscanToken, executionId) => {
+methods.getScanExecutionData = async (appscanToken, skipValue, executionId) => {
     try {
-        const url = constants.SCAN_EXECUTION_DATA.replace('${executionId}', executionId);
+        const url = constants.SCAN_EXECUTION_DATA.replace('${executionId}', executionId).replace('${skipValue}', skipValue);
         return await util.httpRequest(url, appscanToken, "GET")
     }
     catch (err) {

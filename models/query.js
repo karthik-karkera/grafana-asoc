@@ -277,6 +277,7 @@ const queries = {
                 lowIssue = VALUES(lowIssue),
                 mediumIssue = VALUES(mediumIssue),
                 highIssue = VALUES(highIssue),
+                status = VALUES(status),
                 criticalIssue = VALUES(criticalIssue)`
             return await sql.query(query)
         } catch (err) {
